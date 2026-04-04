@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: edu-ai-config
+data:
+  CELERY_BROKER_URL: "redis://redis-service:6379/1"
+  CELERY_RESULT_BACKEND: "redis://redis-service:6379/2"
+  REDIS_URL: "redis://redis-service:6379/0"
+  VECTOR_BACKEND: "chroma_http"
+  CHROMA_HOST: "chroma-service"
+  CHROMA_PORT: "8000"
+  VITE_API_BASE_URL: "http://api-service:8000/api/v1"

@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic
+pydantic-settings
+google-genai
+celery[redis]
+redis
+yt-dlp
+youtube-transcript-api
+langchain
+langchain-text-splitters
+pypdf
+pinecone
+chromadb
+numpy
+python-dotenv

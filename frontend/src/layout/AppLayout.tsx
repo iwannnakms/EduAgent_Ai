@@ -1,0 +1,82 @@
+import React from 'react';
+import { Outlet, NavLink, useLocation } from 'react-router-dom';
+import { MessageSquare, LayoutDashboard, Youtube, Map as MapIcon, ChevronRight } from 'lucide-react';
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+// Utility for merging tailwind classes safely
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+const navItems = [
+  { icon: LayoutDashboard, label: 'Home', path: '/' },
+  { icon: MessageSquare, label: 'Chat Assistant', path: '/chat' },
+  { icon: Youtube, label: 'YouTube Notes', path: '/youtube' },
+  { icon: MapIcon, label: 'Roadmap Builder', path: '/roadmap' },
+];
+
+export const AppLayout = () => {
+  const location = useLocation();
+
+  return (
+    <div className="flex h-screen bg-midnight-950 text-slate-200 overflow-hidden relative">
+      
+      {/* Sidebar */}
+      <aside className="w-64 border-r border-slate-800/50 bg-midnight-900/60 backdrop-blur-xl flex flex-col z-20">
+        <div className="h-16 flex items-center px-6 border-b border-slate-800/50">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-electric-600 to-electric-400 flex items-center justify-center shadow-lg shadow-electric-500/20">
+              <span className="font-bold text-white text-sm">Ai</span>
+            </div>
+            <h1 className="font-semibold tracking-tight text-lg text-slate-100">EduAgent</h1>
+          </div>
+        </div>
+
+        <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-2">
+          {navItems.map((item) => {
+            const isActive = location.pathname === item.path;
+            const Icon = item.icon;
+            
+            return (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group",
+                  isActive 
+                    ? "bg-electric-500/10 text-electric-400 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] ring-1 ring-electric-500/20" 
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                )}
+              >
+                <Icon className={cn("w-4 h-4", isActive ? "text-electric-400" : "text-slate-400 group-hover:text-slate-300")} />
+                {item.label}
+                {isActive && (
+                  <ChevronRight className="w-4 h-4 ml-auto text-electric-500/50" />
+                )}
+              </NavLink>
+            )
+          })}
+        </nav>
+
+        <div className="p-4 border-t border-slate-800/50">
+          <div className="bg-slate-800/30 rounded-xl p-4 ring-1 ring-slate-700/30">
+            <p className="text-xs font-medium text-slate-300 mb-1">Plan: Free Tier</p>
+            <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-electric-600 to-electric-400 w-1/3"></div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col relative z-10 h-screen overflow-hidden">
+        {/* Top subtle gradient effect for the page background */}
+        <div className="absolute top-[-20%] left-[-10%] w-[140%] h-[50%] bg-mesh opacity-40 pointer-events-none -z-10" />
+        <div className="absolute bottom-0 right-0 w-[50vw] h-[50vh] bg-[radial-gradient(ellipse_at_bottom_right,_var(--tw-gradient-stops))] from-electric-900/20 via-midnight-950/0 to-transparent pointer-events-none -z-10" />
+        
+        <Outlet />
+      </main>
+    </div>
+  );
+};
