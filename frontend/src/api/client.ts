@@ -1,17 +1,18 @@
 const getBaseUrl = () => {
+  // If explicitly provided via Env Var, use that
   if (import.meta.env.VITE_API_BASE_URL) return import.meta.env.VITE_API_BASE_URL;
   
+  // SSR fallback
   if (typeof window === 'undefined') return "http://localhost:8000/api/v1";
 
-  const { hostname } = window.location;
+  const { hostname, origin } = window.location;
   
-  // If we are NOT on localhost, assume we are on Render/Railway 
-  // and use the relative path (Monolith mode)
+  // If we are on Render/Railway/Custom Domain, use the relative origin
   if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
-    return "/api/v1";
+    return `${origin}/api/v1`;
   }
   
-  // Local development
+  // Local development fallback
   return "http://localhost:8000/api/v1";
 };
 
