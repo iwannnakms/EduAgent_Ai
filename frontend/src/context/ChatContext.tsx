@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
 import { RAGSource } from '../api/client';
 
 export interface Message {
@@ -7,7 +7,7 @@ export interface Message {
   content: string;
   sources?: RAGSource[];
   timestamp: Date;
-  isComplete?: boolean; // Track if typing animation is finished
+  isComplete?: boolean;
 }
 
 interface ChatContextType {
@@ -15,7 +15,6 @@ interface ChatContextType {
   setActiveContextId: (id: string) => void;
   contexts: string[];
   addContext: (id: string) => void;
-  // Messages are stored as { [contextId]: Message[] }
   messageHistory: Record<string, Message[]>;
   addMessage: (contextId: string, message: Message) => void;
   markMessageComplete: (contextId: string, messageId: string) => void;
@@ -26,7 +25,7 @@ interface ChatContextType {
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export const ChatProvider = ({ children }: { children: ReactNode }) => {
-  const [activeContextId, setActiveContextId] = useState<string>(''); // '' means "All Documents"
+  const [activeContextId, setActiveContextId] = useState<string>('');
   const [contexts, setContexts] = useState<string[]>(['General', 'Research', 'Lectures']);
   const [messageHistory, setMessageHistory] = useState<Record<string, Message[]>>({
     '': [],
@@ -35,52 +34,58 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     'Lectures': []
   });
 
-  const addContext = (id: string) => {
-    if (!contexts.includes(id)) {
-      setContexts(prev => [...prev, id]);
-      setMessageHistory(prev => ({ ...prev, [id]: [] }));
-    }
-  };
+  const addContext = useCallback((id: string) => {
+    setContexts(prev => {
+      if (prev.includes(id)) return prev;
+      return [...prev, id];
+    });
+    setMessageHistory(prev => {
+      if (prev[id]) return prev;
+      return { ...prev, [id]: [] };
+    });
+  }, []);
 
-  const addMessage = (contextId: string, message: Message) => {
+  const addMessage = useCallback((contextId: string, message: Message) => {
     setMessageHistory(prev => ({
       ...prev,
       [contextId]: [...(prev[contextId] || []), message]
     }));
-  };
+  }, []);
 
-  const markMessageComplete = (contextId: string, messageId: string) => {
+  const markMessageComplete = useCallback((contextId: string, messageId: string) => {
     setMessageHistory(prev => ({
       ...prev,
       [contextId]: (prev[contextId] || []).map(msg => 
         msg.id === messageId ? { ...msg, isComplete: true } : msg
       )
     }));
-  };
+  }, []);
 
-  const markAllComplete = (contextId: string) => {
+  const markAllComplete = useCallback((contextId: string) => {
     setMessageHistory(prev => ({
       ...prev,
       [contextId]: (prev[contextId] || []).map(msg => ({ ...msg, isComplete: true }))
     }));
-  };
+  }, []);
 
-  const clearHistory = (contextId: string) => {
+  const clearHistory = useCallback((contextId: string) => {
     setMessageHistory(prev => ({ ...prev, [contextId]: [] }));
-  };
+  }, []);
+
+  const value = React.useMemo(() => ({
+    activeContextId, 
+    setActiveContextId, 
+    contexts, 
+    addContext, 
+    messageHistory, 
+    addMessage,
+    markMessageComplete,
+    markAllComplete,
+    clearHistory
+  }), [activeContextId, contexts, messageHistory, addContext, addMessage, markMessageComplete, markAllComplete, clearHistory]);
 
   return (
-    <ChatContext.Provider value={{ 
-      activeContextId, 
-      setActiveContextId, 
-      contexts, 
-      addContext, 
-      messageHistory, 
-      addMessage,
-      markMessageComplete,
-      markAllComplete,
-      clearHistory
-    }}>
+    <ChatContext.Provider value={value}>
       {children}
     </ChatContext.Provider>
   );

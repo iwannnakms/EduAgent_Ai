@@ -3,8 +3,12 @@ import { Youtube, Wand2, FileText, CheckCircle2, Loader2, AlertCircle, Database,
 import { motion, AnimatePresence } from 'framer-motion';
 import { api, type TaskStatus } from '../api/client';
 import { cn } from '../layout/AppLayout';
+import { useChat } from '../context/ChatContext';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export const YouTubePage = () => {
+  const { addContext, setActiveContextId } = useChat();
   const [url, setUrl] = useState('');
   const [taskId, setTaskId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -55,14 +59,35 @@ export const YouTubePage = () => {
     if (!url.trim()) return;
     setIsIngesting(true);
     setIngestSuccess(false);
+    setError(null);
     
     try {
-      const documentId = `yt-${Date.now()}`;
-      await api.submitRagYoutubeIngest(documentId, url);
-      setIngestSuccess(true);
+      const videoId = url.split('v=')[1]?.split('&')[0] || Date.now().toString();
+      const documentId = `Video-${videoId.substring(0, 6)}`;
+      
+      const task = await api.submitRagYoutubeIngest(documentId, url);
+      
+      const interval = setInterval(async () => {
+        try {
+          const data = await api.pollRagTask(task.task_id);
+          if (data.status === 'SUCCESS') {
+            clearInterval(interval);
+            addContext(documentId);
+            setIngestSuccess(true);
+            setIsIngesting(false);
+          } else if (data.status === 'FAILURE') {
+            clearInterval(interval);
+            setError("Ingestion failed: " + (data.error || "Unknown error"));
+            setIsIngesting(false);
+          }
+        } catch (err) {
+          clearInterval(interval);
+          setIsIngesting(false);
+        }
+      }, 2000);
+
     } catch (err: any) {
-      setError("RAG Ingestion failed: " + err.message);
-    } finally {
+      setError("RAG Ingestion request failed: " + err.message);
       setIsIngesting(false);
     }
   };
@@ -167,36 +192,32 @@ export const YouTubePage = () => {
                 {isIngesting ? <Loader2 className="w-4 h-4 animate-spin" /> : (ingestSuccess ? <CheckCircle2 className="w-4 h-4" /> : <Database className="w-4 h-4" />)}
                 {ingestSuccess ? "Ingested to RAG" : "Add to Chat Context"}
               </button>
-              <button className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 border border-slate-700 text-sm font-medium hover:bg-slate-700 transition-all flex items-center gap-2">
-                <FileText className="w-4 h-4" />
-                Export as PDF
-              </button>
             </div>
 
             <div className="grid lg:grid-cols-2 gap-6">
               {/* Summary Section */}
               <div className="glass-card p-6 space-y-4">
-                <div className="flex items-center gap-2 text-electric-400 font-bold text-xs uppercase tracking-widest">
+                <div className="flex items-center gap-2 text-electric-400 font-bold text-xs uppercase tracking-widest border-b border-slate-800 pb-2">
                   <Wand2 className="w-4 h-4" />
-                  AI Summary
+                  AI Study Notes
                 </div>
-                <div className="prose prose-invert max-w-none">
-                  <p className="text-slate-200 leading-relaxed text-sm">
+                <div className="prose prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-headings:text-slate-100 prose-li:my-1">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
                     {result.summary}
-                  </p>
+                  </ReactMarkdown>
                 </div>
               </div>
 
               {/* Transcript Section */}
-              <div className="glass-card p-6 space-y-4 max-h-[500px] flex flex-col">
-                <div className="flex items-center gap-2 text-slate-400 font-bold text-xs uppercase tracking-widest">
+              <div className="glass-card p-6 space-y-4 max-h-[600px] flex flex-col">
+                <div className="flex items-center gap-2 text-slate-400 font-bold text-xs uppercase tracking-widest border-b border-slate-800 pb-2">
                   <FileText className="w-4 h-4" />
-                  Full Transcript
+                  Structured Transcript
                 </div>
-                <div className="flex-1 overflow-y-auto pr-2">
-                  <p className="text-slate-400 text-sm leading-relaxed whitespace-pre-wrap">
+                <div className="flex-1 overflow-y-auto pr-2 prose prose-invert prose-xs max-w-none prose-p:leading-normal prose-p:text-slate-400">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
                     {result.transcript}
-                  </p>
+                  </ReactMarkdown>
                 </div>
               </div>
             </div>

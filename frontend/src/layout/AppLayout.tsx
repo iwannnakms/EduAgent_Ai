@@ -23,7 +23,7 @@ export const AppLayout = () => {
     <div className="flex h-screen bg-midnight-950 text-slate-200 overflow-hidden relative">
       
       {/* Sidebar */}
-      <aside className="w-64 border-r border-slate-800/50 bg-midnight-900/60 backdrop-blur-xl flex flex-col z-20">
+      <aside className="relative w-64 border-r border-slate-800/50 bg-midnight-900/60 backdrop-blur-xl flex flex-col z-20">
         <div className="h-16 flex items-center px-6 border-b border-slate-800/50">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-electric-600 to-electric-400 flex items-center justify-center shadow-lg shadow-electric-500/20">
@@ -70,12 +70,17 @@ export const AppLayout = () => {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col relative z-10 h-screen overflow-hidden">
-        {/* Top subtle gradient effect for the page background */}
-        <div className="absolute top-[-20%] left-[-10%] w-[140%] h-[50%] bg-mesh opacity-40 pointer-events-none -z-10" />
-        <div className="absolute bottom-0 right-0 w-[50vw] h-[50vh] bg-[radial-gradient(ellipse_at_bottom_right,_var(--tw-gradient-stops))] from-electric-900/20 via-midnight-950/0 to-transparent pointer-events-none -z-10" />
+      <main className="flex-1 flex flex-col relative h-screen overflow-hidden bg-transparent">
+        {/* Background Effects Container - Isolated to prevent overflow into sidebar */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+          <div className="absolute top-[-20%] left-[-10%] w-[140%] h-[50%] bg-mesh opacity-40 -z-10" />
+          <div className="absolute bottom-0 right-0 w-[50vw] h-[50vh] bg-[radial-gradient(ellipse_at_bottom_right,_var(--tw-gradient-stops))] from-electric-900/20 via-midnight-950/0 to-transparent -z-10" />
+        </div>
         
-        <Outlet />
+        {/* Page Content */}
+        <div className="relative z-10 flex-1 flex flex-col overflow-hidden">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

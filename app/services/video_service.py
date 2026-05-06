@@ -71,12 +71,16 @@ class VideoService:
     def transcribe_audio(self, audio_path: Path, target_language: str | None = "en") -> str:
         # Upload the file using the new SDK
         try:
-            # Note: The new SDK handles file uploads slightly differently
-            with open(audio_path, 'rb') as f:
-                uploaded_file = self.client.files.upload(file=f)
+            # Explicitly set mime_type as required by the new SDK
+            uploaded_file = self.client.files.upload(
+                file=str(audio_path),
+                config={'mime_type': 'audio/mpeg'}
+            )
             
             prompt = (
                 "Transcribe this educational audio faithfully. "
+                "Use clear paragraph breaks and punctuation. "
+                "If there are distinct speakers or sections, indicate them with bold headers. "
                 f"Target language: {target_language or 'auto-detect'}."
             )
             
@@ -93,8 +97,14 @@ class VideoService:
 
     def summarize_transcript(self, transcript: str, max_summary_tokens: int = 350) -> str:
         prompt = (
-            "Summarize the following educational transcript into concise study notes. "
-            f"Keep it around {max_summary_tokens} tokens worth of detail.\n\n{transcript}"
+            "Summarize the following educational transcript into high-quality study notes using Markdown. "
+            "Structure it exactly like this:\n"
+            "1. # Title: A concise title for the video\n"
+            "2. ## Overview: A brief 2-3 sentence high-level summary.\n"
+            "3. ## Key Takeaways: A bulleted list of the most important points.\n"
+            "4. ## Detailed Summary: Break down the content into logical sections with sub-headers.\n"
+            f"Aim for around {max_summary_tokens} tokens worth of detail.\n\n"
+            f"Transcript:\n{transcript}"
         )
         try:
             response = self.client.models.generate_content(
