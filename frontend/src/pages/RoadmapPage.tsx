@@ -198,12 +198,23 @@ export const RoadmapPage = () => {
                               Recommended Resources
                             </div>
                             <div className="space-y-2">
-                              {step.resources.map((resource, i) => (
-                                <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-slate-900/50 border border-slate-800 text-xs text-slate-300 group/res hover:border-slate-700 transition-colors">
-                                  {resource}
-                                  <ExternalLink className="w-3 h-3 text-slate-600 group-hover/res:text-electric-400 transition-colors" />
-                                </div>
-                              ))}
+                              {step.resources.map((resource, i) => {
+                                const isLink = resource.startsWith('http');
+                                const href = isLink ? resource : `https://www.google.com/search?q=${encodeURIComponent(resource)}`;
+                                
+                                return (
+                                  <a 
+                                    key={i} 
+                                    href={href}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center justify-between p-2 rounded-lg bg-slate-900/50 border border-slate-800 text-xs text-slate-300 group/res hover:border-electric-500/30 hover:bg-electric-500/5 transition-all"
+                                  >
+                                    <span className="truncate max-w-[90%]">{resource}</span>
+                                    <ExternalLink className="w-3 h-3 text-slate-600 group-hover/res:text-electric-400 transition-colors flex-shrink-0" />
+                                  </a>
+                                );
+                              })}
                             </div>
                           </div>
                         </div>

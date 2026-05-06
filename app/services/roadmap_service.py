@@ -29,6 +29,7 @@ class RoadmapService:
             "Generate a learning roadmap as strict JSON with keys: "
             "topic, learner_level, total_weeks, steps. "
             "Each step must include step (number), title, outcomes (list), resources (list), estimated_hours (number). "
+            "CRITICAL: For every item in the 'resources' list, provide a valid direct URL link to documentation, a tutorial, or a specific course (e.g. 'https://react.dev'). "
             "Return only valid JSON.\n\n"
             f"Topic: {topic}\n"
             f"Learner level: {learner_level}\n"

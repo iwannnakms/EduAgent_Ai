@@ -174,7 +174,6 @@ export const ChatPage = () => {
               <p className="text-[11px] text-slate-500 flex items-center gap-1.5">Context: <span className="text-electric-400/80 font-medium">{activeContextId || 'All Documents'}</span></p>
             </div>
           </div>
-          <button onClick={() => clearHistory(activeContextId)} className="ml-auto p-2 text-slate-400 hover:text-rose-400 rounded-lg"><Trash2 className="w-5 h-5" /></button>
         </header>
 
         <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-6 space-y-8">
@@ -237,7 +236,6 @@ export const ChatPage = () => {
                 <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept=".txt,.pdf" />
                 <button onClick={() => fileInputRef.current?.click()} className="p-2 text-slate-500 hover:text-slate-200 transition-colors" title="Upload Document"><Paperclip className="w-5 h-5" /></button>
                 <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} placeholder={`Ask about ${activeContextId || 'All Documents'}...`} className="flex-1 bg-transparent border-none focus:ring-0 text-slate-200 text-sm py-2 px-3" />
-                <button onClick={() => alert("Coming soon!")} className="p-2 text-slate-500 hover:text-slate-200 transition-colors" title="Voice Input"><Mic className="w-5 h-5" /></button>
                 <button onClick={handleSend} disabled={!input.trim() || isLoading} className={cn("p-2.5 rounded-xl transition-all ml-2", input.trim() && !isLoading ? "bg-electric-600 text-white shadow-lg shadow-electric-500/20 scale-100 hover:scale-105" : "bg-slate-800 text-slate-600 cursor-not-allowed")}><Send className="w-4 h-4" /></button>
               </div>
             </div>

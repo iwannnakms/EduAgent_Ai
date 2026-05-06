@@ -26,9 +26,6 @@ export const AppLayout = () => {
       <aside className="relative w-64 border-r border-slate-800/50 bg-midnight-900/60 backdrop-blur-xl flex flex-col z-20">
         <div className="h-16 flex items-center px-6 border-b border-slate-800/50">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-electric-600 to-electric-400 flex items-center justify-center shadow-lg shadow-electric-500/20">
-              <span className="font-bold text-white text-sm">Ai</span>
-            </div>
             <h1 className="font-semibold tracking-tight text-lg text-slate-100">EduAgent</h1>
           </div>
         </div>
@@ -58,15 +55,6 @@ export const AppLayout = () => {
             )
           })}
         </nav>
-
-        <div className="p-4 border-t border-slate-800/50">
-          <div className="bg-slate-800/30 rounded-xl p-4 ring-1 ring-slate-700/30">
-            <p className="text-xs font-medium text-slate-300 mb-1">Plan: Free Tier</p>
-            <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-electric-600 to-electric-400 w-1/3"></div>
-            </div>
-          </div>
-        </div>
       </aside>
 
       {/* Main Content Area */}
