@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     vector_backend: str = Field(default="chroma", alias="VECTOR_BACKEND")
     pinecone_api_key: str = Field(default="", alias="PINECONE_API_KEY")
     pinecone_index_name: str = Field(default="edu-ai-index", alias="PINECONE_INDEX_NAME")
+    pinecone_host: str = Field(default="", alias="PINECONE_HOST")
     pinecone_namespace: str = Field(default="default", alias="PINECONE_NAMESPACE")
     chroma_collection_name: str = Field(default="edu_ai_docs", alias="CHROMA_COLLECTION_NAME")
     chroma_persist_dir: str = Field(default="./data/chroma", alias="CHROMA_PERSIST_DIR")

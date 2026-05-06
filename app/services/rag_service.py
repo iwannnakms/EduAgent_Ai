@@ -35,7 +35,10 @@ class RAGService:
         self.backend = self.settings.vector_backend.lower()
         if self.backend == "pinecone":
             pc = Pinecone(api_key=self.settings.pinecone_api_key)
-            self.pinecone_index = pc.Index(self.settings.pinecone_index_name)
+            if self.settings.pinecone_host:
+                self.pinecone_index = pc.Index(host=self.settings.pinecone_host)
+            else:
+                self.pinecone_index = pc.Index(self.settings.pinecone_index_name)
             self.pinecone_namespace = self.settings.pinecone_namespace
         elif self.backend == "chroma_http":
             self.chroma = chromadb.HttpClient(host=self.settings.chroma_host, port=self.settings.chroma_port)

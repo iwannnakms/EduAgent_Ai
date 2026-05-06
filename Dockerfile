@@ -5,12 +5,28 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Install ffmpeg and nodejs (for yt-dlp JS runtime)
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg nodejs && rm -rf /var/lib/apt/lists/*
+# Install dependencies: ffmpeg, nodejs, and npm
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    curl \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+# 1. Build Frontend
+COPY frontend/package*.json ./frontend/
+RUN cd frontend && npm install
 
-COPY . /app
+COPY frontend/ ./frontend/
+RUN cd frontend && npm run build
+
+# 2. Setup Backend
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+# Ensure the built frontend is in the right place (if not already copied)
+# app/main.py expects it at frontend/dist
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
