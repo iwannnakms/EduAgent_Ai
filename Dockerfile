@@ -29,4 +29,4 @@ COPY . .
 # Ensure the built frontend is in the right place (if not already copied)
 # app/main.py expects it at frontend/dist
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

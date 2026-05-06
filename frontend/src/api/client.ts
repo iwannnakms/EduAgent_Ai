@@ -1,6 +1,6 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL 
   ? import.meta.env.VITE_API_BASE_URL 
-  : (typeof window !== 'undefined' && window.location.origin.includes('onrender.com') 
+  : (typeof window !== 'undefined' && (window.location.origin.includes('onrender.com') || window.location.origin.includes('railway.app'))
       ? `${window.location.origin}/api/v1` 
       : "http://localhost:8000/api/v1");
 
