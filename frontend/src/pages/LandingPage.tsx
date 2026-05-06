@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Zap, Lock, BrainCircuit } from 'lucide-react';
+import { ArrowRight, Zap, BrainCircuit, Youtube } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export const LandingPage = () => {
@@ -9,18 +9,18 @@ export const LandingPage = () => {
   const features = [
     {
       icon: Zap,
-      title: 'Fast Response',
-      description: 'Lightning-fast AI responses powered by state-of-the-art models and optimized edge delivery.',
-    },
-    {
-      icon: Lock,
-      title: 'Secure Encryption',
-      description: 'Your data is fully encrypted at rest and in transit. Complete privacy guaranteed.',
+      title: 'Chat with Anything',
+      description: 'Upload PDFs or link YouTube videos to start an intelligent conversation with your content.',
     },
     {
       icon: BrainCircuit,
-      title: 'Context Aware',
-      description: 'Advanced Retrieval-Augmented Generation ensures every response is grounded in your specific documents.',
+      title: 'Smart Roadmaps',
+      description: 'Generate personalized learning paths with curated resources and direct study links.',
+    },
+    {
+      icon: Youtube,
+      title: 'YouTube to Notes',
+      description: 'Instantly transform lectures and tutorials into structured, high-quality Markdown study notes.',
     },
   ];
 
