@@ -15,7 +15,7 @@ class Settings(BaseSettings):
 
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
     gemini_chat_model: str = Field(default="gemini-1.5-flash", alias="GEMINI_CHAT_MODEL")
-    gemini_embedding_model: str = Field(default="models/embedding-001", alias="GEMINI_EMBEDDING_MODEL")
+    gemini_embedding_model: str = Field(default="text-embedding-004", alias="GEMINI_EMBEDDING_MODEL")
     gemini_audio_model: str = Field(default="gemini-1.5-flash", alias="GEMINI_AUDIO_MODEL")
 
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")

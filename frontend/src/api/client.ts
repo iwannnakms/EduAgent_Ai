@@ -1,8 +1,24 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL 
-  ? import.meta.env.VITE_API_BASE_URL 
-  : (typeof window !== 'undefined' && (window.location.origin.includes('onrender.com') || window.location.origin.includes('railway.app'))
-      ? `${window.location.origin}/api/v1` 
-      : "http://localhost:8000/api/v1");
+const getBaseUrl = () => {
+  if (import.meta.env.VITE_API_BASE_URL) return import.meta.env.VITE_API_BASE_URL;
+  
+  if (typeof window === 'undefined') return "http://localhost:8000/api/v1";
+
+  const { origin, hostname } = window.location;
+  
+  // Production cloud environments (Render, Railway)
+  if (origin.includes('onrender.com') || origin.includes('railway.app')) {
+    return `${origin}/api/v1`;
+  }
+  
+  // Local development: match the hostname (localhost or 127.0.0.1) but use port 8000
+  if (hostname === '127.0.0.1' || hostname === 'localhost') {
+    return `http://${hostname}:8000/api/v1`;
+  }
+
+  return "http://localhost:8000/api/v1";
+};
+
+const API_BASE_URL = getBaseUrl();
 
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
   const url = `${API_BASE_URL}${path}`;

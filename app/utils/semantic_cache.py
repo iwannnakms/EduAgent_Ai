@@ -22,6 +22,7 @@ class SemanticCache:
         self.settings = get_settings()
         self.client = get_gemini_client()
         self.redis_client = redis.Redis.from_url(self.settings.redis_url, decode_responses=True)
+        # Use the smart resolver to find the working embedding model
         self.embedding_model = resolve_model(self.settings.gemini_embedding_model, "embedContent")
 
     def _cache_index_key(self, scope: str) -> str:
@@ -31,11 +32,15 @@ class SemanticCache:
         return f"semantic-cache:item:{scope}:{digest}"
 
     def _embed(self, text: str) -> np.ndarray:
+        # The new SDK signature for singular embedding
         response = self.client.models.embed_content(
             model=self.embedding_model,
             contents=text
         )
-        return np.array(response.embeddings[0].values, dtype=np.float32)
+        # Handle the new SDK response structure
+        # response.embeddings is a list of ContentEmbedding objects
+        values = response.embeddings[0].values
+        return np.array(values, dtype=np.float32)
 
     @staticmethod
     def _cosine_similarity(vec_a: np.ndarray, vec_b: np.ndarray) -> float:
@@ -45,42 +50,52 @@ class SemanticCache:
         return float(np.dot(vec_a, vec_b) / denom)
 
     def get(self, scope: str, query: str) -> Optional[Dict[str, Any]]:
-        index_key = self._cache_index_key(scope)
-        cached_keys = self.redis_client.smembers(index_key)
-        if not cached_keys:
+        try:
+            index_key = self._cache_index_key(scope)
+            cached_keys = self.redis_client.smembers(index_key)
+            if not cached_keys:
+                return None
+
+            query_vec = self._embed(query)
+            threshold = self.settings.semantic_cache_similarity_threshold
+
+            best_payload: Optional[Dict[str, Any]] = None
+            best_score = -1.0
+
+            for digest in cached_keys:
+                payload_raw = self.redis_client.get(self._cache_item_key(scope, digest))
+                if not payload_raw:
+                    continue
+                payload = json.loads(payload_raw)
+                cached_vec = np.array(payload["embedding"], dtype=np.float32)
+                similarity = self._cosine_similarity(query_vec, cached_vec)
+                if similarity > best_score:
+                    best_score = similarity
+                    best_payload = payload
+
+            if best_payload and best_score >= threshold:
+                return {"response": best_payload["response"], "similarity": best_score}
+        except Exception as e:
+            # Don't let cache errors crash the whole app
+            import logging
+            logging.getLogger(__name__).warning(f"Cache lookup failed: {str(e)}")
             return None
-
-        query_vec = self._embed(query)
-        threshold = self.settings.semantic_cache_similarity_threshold
-
-        best_payload: Optional[Dict[str, Any]] = None
-        best_score = -1.0
-
-        for digest in cached_keys:
-            payload_raw = self.redis_client.get(self._cache_item_key(scope, digest))
-            if not payload_raw:
-                continue
-            payload = json.loads(payload_raw)
-            cached_vec = np.array(payload["embedding"], dtype=np.float32)
-            similarity = self._cosine_similarity(query_vec, cached_vec)
-            if similarity > best_score:
-                best_score = similarity
-                best_payload = payload
-
-        if best_payload and best_score >= threshold:
-            return {"response": best_payload["response"], "similarity": best_score}
         return None
 
     def set(self, scope: str, query: str, response: Dict[str, Any]) -> None:
-        query_vec = self._embed(query)
-        digest = hashlib.sha256(query.encode("utf-8")).hexdigest()
-        item_key = self._cache_item_key(scope, digest)
-        index_key = self._cache_index_key(scope)
+        try:
+            query_vec = self._embed(query)
+            digest = hashlib.sha256(query.encode("utf-8")).hexdigest()
+            item_key = self._cache_item_key(scope, digest)
+            index_key = self._cache_index_key(scope)
 
-        payload = {
-            "query": query,
-            "embedding": query_vec.tolist(),
-            "response": response,
-        }
-        self.redis_client.setex(item_key, self.settings.semantic_cache_ttl_seconds, json.dumps(payload))
-        self.redis_client.sadd(index_key, digest)
+            payload = {
+                "query": query,
+                "embedding": query_vec.tolist(),
+                "response": response,
+            }
+            self.redis_client.setex(item_key, self.settings.semantic_cache_ttl_seconds, json.dumps(payload))
+            self.redis_client.sadd(index_key, digest)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Cache set failed: {str(e)}")

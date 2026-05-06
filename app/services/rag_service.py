@@ -130,6 +130,12 @@ class RAGService:
             return response
 
         sources = self._vector_search(query=query, top_k=top_k, document_id=document_id)
+        
+        if not sources:
+            logger.warning(f"No context found for query '{query}' in document '{document_id}'")
+        else:
+            logger.info(f"Found {len(sources)} context chunks for query in '{document_id}'")
+
         context = "\n\n".join([f"- {s.text}" for s in sources])
 
         prompt = (
@@ -138,19 +144,33 @@ class RAGService:
             f"Context:\n{context}\n\nQuestion:\n{query}"
         )
         
-        try:
-            response = self.client.models.generate_content(
-                model=self.chat_model_name,
-                contents=prompt
-            )
-            answer = response.text or "No answer generated."
-            payload = {
-                "answer": answer,
-                "sources": [{"text": s.text, "score": s.score, "metadata": s.metadata} for s in sources],
-                "cache_hit": False,
-            }
-            self.cache.set(scope=cache_scope, query=query, response=payload)
-            return payload
-        except Exception as e:
-            logger.error(f"RAG query failed: {str(e)}")
-            raise RuntimeError(f"RAG query failed: {str(e)}")
+        # Robust retry logic for 503/429 errors
+        max_retries = 5
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                response = self.client.models.generate_content(
+                    model=self.chat_model_name,
+                    contents=prompt
+                )
+                answer = response.text or "No answer generated."
+                payload = {
+                    "answer": answer,
+                    "sources": [{"text": s.text, "score": s.score, "metadata": s.metadata} for s in sources],
+                    "cache_hit": False,
+                }
+                self.cache.set(scope=cache_scope, query=query, response=payload)
+                return payload
+            except Exception as e:
+                last_error = e
+                if "503" in str(e) or "429" in str(e):
+                    import time
+                    wait_time = (attempt + 1) * 3
+                    logger.warning(f"Gemini busy (attempt {attempt+1}/{max_retries}). Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                    continue
+                break
+
+        logger.error(f"RAG query failed after retries: {str(last_error)}")
+        raise RuntimeError(f"RAG query failed: {str(last_error)}")

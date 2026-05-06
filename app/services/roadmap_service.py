@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from typing import Any, Dict
 
 from app.core.config import get_settings
@@ -34,24 +35,37 @@ class RoadmapService:
             f"Target duration (weeks): {target_duration_weeks}"
         )
         
-        try:
-            response = self.client.models.generate_content(
-                model=self.chat_model_name,
-                contents=prompt
-            )
-            raw = response.text or "{}"
-            
-            # Clean up JSON if LLM wraps it in markdown
-            if "```" in raw:
-                raw = raw.split("```")[1]
-                if raw.startswith("json"):
-                    raw = raw[4:]
-                raw = raw.strip()
-            
-            payload = json.loads(raw)
-            payload["cache_hit"] = False
-            self.cache.set(scope="roadmap", query=cache_key, response=payload)
-            return payload
-        except Exception as e:
-            logger.error(f"Failed to generate roadmap: {str(e)}")
-            raise RuntimeError(f"Roadmap generation failed: {str(e)}")
+        # Robust retry logic for 503/429 errors
+        max_retries = 5
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                response = self.client.models.generate_content(
+                    model=self.chat_model_name,
+                    contents=prompt
+                )
+                raw = response.text or "{}"
+                
+                if "```" in raw:
+                    raw = raw.split("```")[1]
+                    if raw.startswith("json"):
+                        raw = raw[4:]
+                    raw = raw.strip()
+                
+                payload = json.loads(raw)
+                payload["cache_hit"] = False
+                self.cache.set(scope="roadmap", query=cache_key, response=payload)
+                return payload
+            except Exception as e:
+                last_error = e
+                # Retry on 503 (Busy) or 429 (Rate Limit)
+                if "503" in str(e) or "429" in str(e):
+                    wait_time = (attempt + 1) * 3
+                    logger.warning(f"Gemini busy (attempt {attempt+1}/{max_retries}). Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                    continue
+                break
+
+        logger.error(f"Failed to generate roadmap after retries: {str(last_error)}")
+        raise RuntimeError(f"Roadmap generation failed: {str(last_error)}")
