@@ -29,4 +29,7 @@ COPY . .
 # Ensure the built frontend is in the right place (if not already copied)
 # app/main.py expects it at frontend/dist
 
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+COPY start-prod.sh .
+RUN chmod +x start-prod.sh
+
+CMD ["./start-prod.sh"]

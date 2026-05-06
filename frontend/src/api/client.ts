@@ -3,18 +3,15 @@ const getBaseUrl = () => {
   
   if (typeof window === 'undefined') return "http://localhost:8000/api/v1";
 
-  const { origin, hostname } = window.location;
+  const { hostname } = window.location;
   
-  // Production cloud environments (Render, Railway)
-  if (origin.includes('onrender.com') || origin.includes('railway.app')) {
-    return `${origin}/api/v1`;
+  // If we are NOT on localhost, assume we are on Render/Railway 
+  // and use the relative path (Monolith mode)
+  if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+    return "/api/v1";
   }
   
-  // Local development: match the hostname (localhost or 127.0.0.1) but use port 8000
-  if (hostname === '127.0.0.1' || hostname === 'localhost') {
-    return `http://${hostname}:8000/api/v1`;
-  }
-
+  // Local development
   return "http://localhost:8000/api/v1";
 };
 
