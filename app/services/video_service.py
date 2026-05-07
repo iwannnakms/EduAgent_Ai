@@ -73,7 +73,7 @@ class VideoService:
         try:
             # Explicitly set mime_type as required by the new SDK
             uploaded_file = self.client.files.upload(
-                file=str(audio_path),
+                path=str(audio_path),
                 config={'mime_type': 'audio/mpeg'}
             )
             

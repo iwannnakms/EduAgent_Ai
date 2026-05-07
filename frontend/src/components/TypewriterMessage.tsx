@@ -15,10 +15,10 @@ export const TypewriterMessage: React.FC<TypewriterMessageProps> = ({
   speed = 15, 
   onComplete,
   onHeightChange,
-  isAlreadyComplete = false
+  isAlreadyComplete = true // Default to true to remove typing animation
 }) => {
-  const [displayedContent, setDisplayedContent] = useState(isAlreadyComplete ? content : '');
-  const [isTyping, setIsTyping] = useState(!isAlreadyComplete);
+  const [displayedContent, setDisplayedContent] = useState(content);
+  const [isTyping, setIsTyping] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Use a ref for the latest content to avoid effect re-runs
