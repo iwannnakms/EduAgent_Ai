@@ -1,7 +1,8 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,6 +22,20 @@ class Settings(BaseSettings):
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
     celery_broker_url: str = Field(default="redis://localhost:6379/0", alias="CELERY_BROKER_URL")
     celery_result_backend: str = Field(default="redis://localhost:6379/0", alias="CELERY_RESULT_BACKEND")
+
+    @field_validator("redis_url", "celery_broker_url", "celery_result_backend", mode="after")
+    @classmethod
+    def force_redis_db_zero(cls, v: str) -> str:
+        # If the URL ends with /1, /2, etc., force it to /0 for compatibility with managed Redis (e.g. Upstash)
+        import re
+        if v.startswith("redis"):
+            # Matches / followed by digits at the end of the URL (optionally followed by query params)
+            # e.g. redis://host:port/2 -> redis://host:port/0
+            # e.g. rediss://user:pass@host:port/2?ssl_cert_reqs=none -> rediss://user:pass@host:port/0?ssl_cert_reqs=none
+            pattern = r"(\/)\d+(\?|$)"
+            if re.search(pattern, v):
+                return re.sub(pattern, r"\1 0\2", v).replace(" ", "")
+        return v
 
     vector_backend: str = Field(default="chroma", alias="VECTOR_BACKEND")
     pinecone_api_key: str = Field(default="", alias="PINECONE_API_KEY")
