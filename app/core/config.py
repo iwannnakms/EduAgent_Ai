@@ -1,27 +1,11 @@
-import os
-import re
 import logging
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
-from urllib.parse import urlparse, urlunparse
 
-from pydantic import Field, model_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
-
-def _force_db_zero(url: Any) -> str:
-    s = str(url)
-    if not s or not s.startswith("redis"):
-        return s
-    try:
-        u = urlparse(s)
-        # Surgical replacement of the path to force database 0
-        new_u = u._replace(path="/0")
-        return urlunparse(new_u)
-    except Exception:
-        return s
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
@@ -37,8 +21,8 @@ class Settings(BaseSettings):
     gemini_audio_model: str = Field(default="gemini-1.5-flash", alias="GEMINI_AUDIO_MODEL")
 
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
-    celery_broker_url: str = Field(default="redis://localhost:6379/0", alias="CELERY_BROKER_URL")
-    celery_result_backend: str = Field(default="redis://localhost:6379/0", alias="CELERY_RESULT_BACKEND")
+    celery_broker_url: str = Field(default="redis://localhost:6379/1", alias="CELERY_BROKER_URL")
+    celery_result_backend: str = Field(default="redis://localhost:6379/2", alias="CELERY_RESULT_BACKEND")
 
     vector_backend: str = Field(default="chroma", alias="VECTOR_BACKEND")
     pinecone_api_key: str = Field(default="", alias="PINECONE_API_KEY")
@@ -55,24 +39,10 @@ class Settings(BaseSettings):
     upload_dir: str = Field(default="./data/uploads", alias="UPLOAD_DIR")
     temp_dir: str = Field(default="./data/tmp", alias="TEMP_DIR")
 
-    @model_validator(mode="after")
-    def sanitize_redis_urls(self) -> "Settings":
-        self.redis_url = _force_db_zero(self.redis_url)
-        self.celery_broker_url = _force_db_zero(self.celery_broker_url)
-        self.celery_result_backend = _force_db_zero(self.celery_result_backend)
-        
-        # Override environment variables so Celery and other libs see the correct DB
-        os.environ["REDIS_URL"] = self.redis_url
-        os.environ["CELERY_BROKER_URL"] = self.celery_broker_url
-        os.environ["CELERY_RESULT_BACKEND"] = self.celery_result_backend
-        
-        return self
-
 @lru_cache
 def get_settings() -> Settings:
-    s = Settings()
-    # Double-ensure directories
-    Path(s.upload_dir).mkdir(parents=True, exist_ok=True)
-    Path(s.temp_dir).mkdir(parents=True, exist_ok=True)
-    Path(s.chroma_persist_dir).mkdir(parents=True, exist_ok=True)
-    return s
+    settings = Settings()
+    Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
+    Path(settings.temp_dir).mkdir(parents=True, exist_ok=True)
+    Path(settings.chroma_persist_dir).mkdir(parents=True, exist_ok=True)
+    return settings

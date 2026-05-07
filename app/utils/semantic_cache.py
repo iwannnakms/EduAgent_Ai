@@ -1,7 +1,5 @@
 import hashlib
 import json
-import re
-import ssl
 from typing import Any, Dict, Optional
 import numpy as np
 import redis
@@ -13,25 +11,12 @@ from app.utils.gemini_models import resolve_model
 
 logger = logging.getLogger(__name__)
 
-def _force_db_zero(url: str) -> str:
-    if not url or not url.startswith("redis"):
-        return url
-    return re.sub(r"(\/)\d+(\?|$)", r"\1 0\2", url).replace(" ", "")
-
 class SemanticCache:
     def __init__(self) -> None:
         self.settings = get_settings()
         self.client = get_gemini_client()
         
-        # Force DB 0 for managed Redis
-        redis_url = _force_db_zero(self.settings.redis_url)
-        
-        # Support SSL for Upstash/Cloud Redis
-        redis_kwargs = {"decode_responses": True}
-        if redis_url.startswith("rediss://"):
-            redis_kwargs["ssl_cert_reqs"] = ssl.CERT_NONE
-            
-        self.redis_client = redis.Redis.from_url(redis_url, **redis_kwargs)
+        self.redis_client = redis.Redis.from_url(self.settings.redis_url, decode_responses=True)
         self.embedding_model = resolve_model(self.settings.gemini_embedding_model, "embedContent")
 
     def _cache_index_key(self, scope: str) -> str:

@@ -1,7 +1,6 @@
-import base64
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from pypdf import PdfReader
 
@@ -18,41 +17,22 @@ def ingest_text_task(document_id: str, text: str, metadata: Dict[str, Any]) -> D
 
 
 @celery_app.task(name="tasks.rag.ingest_file")
-def ingest_file_task(
-    document_id: str, 
-    file_path: Optional[str] = None, 
-    file_content_b64: Optional[str] = None,
-    metadata: Dict[str, Any] = None
-) -> Dict[str, Any]:
-    metadata = metadata or {}
-    filename = metadata.get("filename", "unknown_file")
-    
+def ingest_file_task(document_id: str, file_path: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+    path = Path(file_path)
     try:
-        if file_content_b64:
-            content = base64.b64decode(file_content_b64)
-        elif file_path:
-            path = Path(file_path)
-            content = path.read_bytes()
-            # Cleanup if it was a local file
-            path.unlink(missing_ok=True)
-        else:
-            raise ValueError("No file content or path provided")
-
+        content = path.read_bytes()
+        filename = metadata.get("filename", path.name)
         if filename.lower().endswith(".pdf"):
             reader = PdfReader(BytesIO(content))
             text = "\n".join([page.extract_text() or "" for page in reader.pages]).strip()
         else:
             text = content.decode("utf-8", errors="ignore")
 
-        if not text:
-            raise ValueError(f"No text extracted from {filename}")
-
         service = RAGService()
         chunks = service.ingest_text(document_id=document_id, text=text, metadata=metadata)
         return {"document_id": document_id, "chunks_ingested": chunks, "backend": service.backend}
-    except Exception as e:
-        # Re-raise to let Celery handle the failure status
-        raise e
+    finally:
+        path.unlink(missing_ok=True)
 
 
 @celery_app.task(name="tasks.rag.ingest_youtube")
