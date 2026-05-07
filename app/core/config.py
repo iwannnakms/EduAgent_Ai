@@ -1,10 +1,13 @@
+import logging
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from pydantic import Field, field_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+logger = logging.getLogger(__name__)
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
@@ -23,21 +26,6 @@ class Settings(BaseSettings):
     celery_broker_url: str = Field(default="redis://localhost:6379/0", alias="CELERY_BROKER_URL")
     celery_result_backend: str = Field(default="redis://localhost:6379/0", alias="CELERY_RESULT_BACKEND")
 
-    @field_validator("redis_url", "celery_broker_url", "celery_result_backend", mode="after")
-    @classmethod
-    def force_redis_db_zero(cls, v: Any) -> str:
-        s = str(v)
-        if s.startswith("redis"):
-            import re
-            # Replaces /N with /0, preserving query parameters
-            # e.g., /2?ssl=true -> /0?ssl=true, or /2 -> /0
-            new_v = re.sub(r"/(\d+)(\?|$)", r"/0\2", s)
-            if new_v != s:
-                import logging
-                logging.getLogger(__name__).warning(f"Forcing Redis DB 0: {s} -> {new_v}")
-            return new_v
-        return s
-
     vector_backend: str = Field(default="chroma", alias="VECTOR_BACKEND")
     pinecone_api_key: str = Field(default="", alias="PINECONE_API_KEY")
     pinecone_index_name: str = Field(default="edu-ai-index", alias="PINECONE_INDEX_NAME")
@@ -53,11 +41,24 @@ class Settings(BaseSettings):
     upload_dir: str = Field(default="./data/uploads", alias="UPLOAD_DIR")
     temp_dir: str = Field(default="./data/tmp", alias="TEMP_DIR")
 
+def _fix_redis_url(url: str) -> str:
+    if not url or not isinstance(url, str) or not url.startswith("redis"):
+        return url
+    # Force DB 0
+    new_url = re.sub(r"/(\d+)(\?|$)", r"/0\2", url)
+    if new_url != url:
+        logger.warning(f"Forced Redis DB 0 for URL: {url.split('@')[-1]}") # Log only host for safety
+    return new_url
 
 @lru_cache
 def get_settings() -> Settings:
-    settings = Settings()
-    Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
-    Path(settings.temp_dir).mkdir(parents=True, exist_ok=True)
-    Path(settings.chroma_persist_dir).mkdir(parents=True, exist_ok=True)
-    return settings
+    s = Settings()
+    # Explicitly sanitize URLs after loading from environment
+    s.redis_url = _fix_redis_url(s.redis_url)
+    s.celery_broker_url = _fix_redis_url(s.celery_broker_url)
+    s.celery_result_backend = _fix_redis_url(s.celery_result_backend)
+    
+    Path(s.upload_dir).mkdir(parents=True, exist_ok=True)
+    Path(s.temp_dir).mkdir(parents=True, exist_ok=True)
+    Path(s.chroma_persist_dir).mkdir(parents=True, exist_ok=True)
+    return s

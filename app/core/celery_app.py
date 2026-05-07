@@ -1,23 +1,18 @@
 import ssl
-import re
 from celery import Celery
 from app.core.config import get_settings
 
 settings = get_settings()
 
-def _force_db_zero(url: str) -> str:
-    if not url or not isinstance(url, str) or not url.startswith("redis"):
-        return url
-    import re
-    return re.sub(r"/(\d+)(\?|$)", r"/0\2", url)
+# Use sanitized URLs from settings
+broker_url = settings.celery_broker_url
+result_backend = settings.celery_result_backend
 
-broker_url = _force_db_zero(settings.celery_broker_url)
-result_backend = _force_db_zero(settings.celery_result_backend)
-
-# Upstash/Cloud Redis requires special SSL handling
-broker_use_ssl = {
+# SSL configuration for managed Redis (e.g., Upstash, Heroku, Render)
+# Only apply if using rediss://
+ssl_conf = {
     'ssl_cert_reqs': ssl.CERT_NONE
-} if broker_url.startswith('rediss://') else False
+} if broker_url.startswith('rediss://') else None
 
 celery_app = Celery(
     "edu_ai_tasks",
@@ -27,14 +22,11 @@ celery_app = Celery(
 )
 
 celery_app.conf.update(
-    broker_url=broker_url,
-    result_backend=result_backend,
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
-    # Fix for Upstash SSL
-    broker_use_ssl=broker_use_ssl,
-    redis_backend_use_ssl=broker_use_ssl,
+    broker_use_ssl=ssl_conf,
+    redis_backend_use_ssl=ssl_conf,
 )
