@@ -74,31 +74,22 @@ async def ingest_file(document_id: str = Form(...), file: UploadFile = File(...)
 
 @router.post("/ingest/file/async", response_model=TaskAcceptedResponse)
 async def ingest_file_async(document_id: str = Form(...), file: UploadFile = File(...)) -> TaskAcceptedResponse:
-    settings = get_settings()
+    import base64
     filename = file.filename or "uploaded_file"
     
-    # Ensure upload directory exists and is writable
-    upload_path = Path(settings.upload_dir)
-    upload_path.mkdir(parents=True, exist_ok=True)
-    
-    suffix = Path(filename).suffix
-    # Sanitize document_id to avoid path issues
-    safe_doc_id = "".join([c if c.isalnum() else "_" for c in document_id])
-    stored_path = upload_path / f"{safe_doc_id}_{uuid4()}{suffix}"
-
     try:
         content = await file.read()
-        stored_path.write_bytes(content)
-        logger.info(f"Stored file for async ingestion: {stored_path}")
+        content_b64 = base64.b64encode(content).decode("utf-8")
+        logger.info(f"Received file '{filename}' for async ingestion (size: {len(content)} bytes)")
     except Exception as e:
-        logger.error(f"Failed to store uploaded file: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to store uploaded file: {str(e)}")
+        logger.error(f"Failed to read uploaded file: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to read uploaded file: {str(e)}")
 
     try:
         task = ingest_file_task.delay(
             document_id=document_id,
-            file_path=str(stored_path),
-            metadata={"filename": filename, "stored_path": str(stored_path)},
+            file_content_b64=content_b64,
+            metadata={"filename": filename},
         )
         return TaskAcceptedResponse(
             task_id=task.id,
@@ -106,8 +97,6 @@ async def ingest_file_async(document_id: str = Form(...), file: UploadFile = Fil
         )
     except Exception as e:
         logger.error(f"Failed to enqueue ingestion task: {str(e)}")
-        # Cleanup file if task enqueue fails
-        stored_path.unlink(missing_ok=True)
         raise HTTPException(status_code=500, detail=f"Failed to enqueue ingestion task: {str(e)}")
 
 
