@@ -3,9 +3,12 @@ const getBaseUrl = () => {
   if (typeof window === 'undefined') return "http://localhost:8000/api/v1";
   
   const { hostname, origin } = window.location;
+  
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return "http://localhost:8000/api/v1";
   }
+  
+  // If the frontend is served by the backend, it will be on the same origin
   return `${origin}/api/v1`;
 };
 
@@ -20,12 +23,14 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
     });
     if (!response.ok) {
       const body = await response.text();
+      console.error(`API Error [${response.status}] ${url}:`, body);
       throw new Error(`${response.status} ${response.statusText}: ${body}`);
     }
     return (await response.json()) as T;
   } catch (error) {
+    console.error(`Fetch error at ${url}:`, error);
     if (error instanceof TypeError && error.message === "Failed to fetch") {
-      throw new Error(`Failed to connect to backend at ${API_BASE_URL}.`);
+      throw new Error(`Failed to connect to backend at ${API_BASE_URL}. Ensure the backend is running.`);
     }
     throw error;
   }
