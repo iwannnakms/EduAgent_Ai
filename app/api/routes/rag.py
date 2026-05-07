@@ -86,10 +86,12 @@ async def ingest_file_async(document_id: str = Form(...), file: UploadFile = Fil
         raise HTTPException(status_code=500, detail=f"Failed to read uploaded file: {str(e)}")
 
     try:
-        task = ingest_file_task.delay(
-            document_id=document_id,
-            file_content_b64=content_b64,
-            metadata={"filename": filename},
+        task = ingest_file_task.apply_async(
+            kwargs={
+                "document_id": document_id,
+                "file_content_b64": content_b64,
+                "metadata": {"filename": filename},
+            }
         )
         return TaskAcceptedResponse(
             task_id=task.id,

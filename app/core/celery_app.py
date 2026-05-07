@@ -1,13 +1,9 @@
-import os
 import ssl
 from celery import Celery
 from app.core.config import get_settings
 
+# Settings load here will force os.environ to DB 0 via the model_validator
 settings = get_settings()
-
-# Force database 0 in environment so Celery doesn't use provider defaults
-os.environ["CELERY_BROKER_URL"] = settings.celery_broker_url
-os.environ["CELERY_RESULT_BACKEND"] = settings.celery_result_backend
 
 broker_url = settings.celery_broker_url
 result_backend = settings.celery_result_backend
@@ -20,7 +16,6 @@ celery_app = Celery(
     "edu_ai_tasks",
     broker=broker_url,
     backend=result_backend,
-    include=["app.tasks.rag_tasks", "app.tasks.video_tasks"],
 )
 
 celery_app.conf.update(
@@ -34,3 +29,6 @@ celery_app.conf.update(
     broker_use_ssl=ssl_conf,
     redis_backend_use_ssl=ssl_conf,
 )
+
+# Break circular dependency by using autodiscover instead of include in constructor
+celery_app.autodiscover_tasks(['app.tasks'], force=True)

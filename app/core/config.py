@@ -1,13 +1,27 @@
-import logging
+import os
 import re
+import logging
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse, urlunparse
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
+
+def _force_db_zero(url: Any) -> str:
+    s = str(url)
+    if not s or not s.startswith("redis"):
+        return s
+    try:
+        u = urlparse(s)
+        # Surgical replacement of the path to force database 0
+        new_u = u._replace(path="/0")
+        return urlunparse(new_u)
+    except Exception:
+        return s
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
@@ -41,18 +55,23 @@ class Settings(BaseSettings):
     upload_dir: str = Field(default="./data/uploads", alias="UPLOAD_DIR")
     temp_dir: str = Field(default="./data/tmp", alias="TEMP_DIR")
 
-def _force_zero(url: str) -> str:
-    if not url or not isinstance(url, str) or not url.startswith("redis"):
-        return url
-    return re.sub(r"/(\d+)(\?|$)", r"/0\2", url)
+    @model_validator(mode="after")
+    def sanitize_redis_urls(self) -> "Settings":
+        self.redis_url = _force_db_zero(self.redis_url)
+        self.celery_broker_url = _force_db_zero(self.celery_broker_url)
+        self.celery_result_backend = _force_db_zero(self.celery_result_backend)
+        
+        # Override environment variables so Celery and other libs see the correct DB
+        os.environ["REDIS_URL"] = self.redis_url
+        os.environ["CELERY_BROKER_URL"] = self.celery_broker_url
+        os.environ["CELERY_RESULT_BACKEND"] = self.celery_result_backend
+        
+        return self
 
 @lru_cache
 def get_settings() -> Settings:
     s = Settings()
-    s.redis_url = _force_zero(s.redis_url)
-    s.celery_broker_url = _force_zero(s.celery_broker_url)
-    s.celery_result_backend = _force_zero(s.celery_result_backend)
-    
+    # Double-ensure directories
     Path(s.upload_dir).mkdir(parents=True, exist_ok=True)
     Path(s.temp_dir).mkdir(parents=True, exist_ok=True)
     Path(s.chroma_persist_dir).mkdir(parents=True, exist_ok=True)
