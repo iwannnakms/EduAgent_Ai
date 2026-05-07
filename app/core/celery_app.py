@@ -1,3 +1,4 @@
+import os
 import ssl
 from celery import Celery
 from app.core.config import get_settings
@@ -7,6 +8,12 @@ settings = get_settings()
 # Use sanitized URLs from settings (already forced to DB 0 in config.py)
 broker_url = settings.celery_broker_url
 result_backend = settings.celery_result_backend
+
+# CRITICAL FIX: Celery automatically reads these environment variables and 
+# overrides any programmatic configuration. We MUST update os.environ 
+# to force Celery to use the sanitized database 0 URLs.
+os.environ["CELERY_BROKER_URL"] = broker_url
+os.environ["CELERY_RESULT_BACKEND"] = result_backend
 
 # SSL configuration for managed Redis (e.g., Upstash, Heroku, Render)
 ssl_conf = {
