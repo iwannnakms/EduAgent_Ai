@@ -1,24 +1,12 @@
 const getBaseUrl = () => {
-  // If explicitly provided via Env Var, use that
   if (import.meta.env.VITE_API_BASE_URL) return import.meta.env.VITE_API_BASE_URL;
-  
-  // SSR fallback
   if (typeof window === 'undefined') return "http://localhost:8000/api/v1";
-
-  const { hostname, origin, port } = window.location;
   
-  // If we are on a development port (5173), we likely want to talk to the API on 8000
-  if (port === '5173') {
-    return `${window.location.protocol}//${hostname}:8000/api/v1`;
+  const { hostname, origin } = window.location;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return "http://localhost:8000/api/v1";
   }
-
-  // If we are on Render/Railway/Custom Domain, use the relative origin
-  if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
-    return `${origin}/api/v1`;
-  }
-  
-  // Local development fallback
-  return "http://localhost:8000/api/v1";
+  return `${origin}/api/v1`;
 };
 
 const API_BASE_URL = getBaseUrl();
@@ -32,14 +20,12 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
     });
     if (!response.ok) {
       const body = await response.text();
-      console.error(`API Error [${response.status}] ${url}:`, body);
       throw new Error(`${response.status} ${response.statusText}: ${body}`);
     }
     return (await response.json()) as T;
   } catch (error) {
-    console.error(`Fetch error at ${url}:`, error);
     if (error instanceof TypeError && error.message === "Failed to fetch") {
-      throw new Error(`Failed to connect to backend at ${API_BASE_URL}. Ensure the backend is running.`);
+      throw new Error(`Failed to connect to backend at ${API_BASE_URL}.`);
     }
     throw error;
   }

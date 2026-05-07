@@ -5,17 +5,13 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
-# Use sanitized URLs from settings (already forced to DB 0 in config.py)
+# Force database 0 in environment so Celery doesn't use provider defaults
+os.environ["CELERY_BROKER_URL"] = settings.celery_broker_url
+os.environ["CELERY_RESULT_BACKEND"] = settings.celery_result_backend
+
 broker_url = settings.celery_broker_url
 result_backend = settings.celery_result_backend
 
-# CRITICAL FIX: Celery automatically reads these environment variables and 
-# overrides any programmatic configuration. We MUST update os.environ 
-# to force Celery to use the sanitized database 0 URLs.
-os.environ["CELERY_BROKER_URL"] = broker_url
-os.environ["CELERY_RESULT_BACKEND"] = result_backend
-
-# SSL configuration for managed Redis (e.g., Upstash, Heroku, Render)
 ssl_conf = {
     'ssl_cert_reqs': ssl.CERT_NONE
 } if broker_url.startswith('rediss://') else None
@@ -27,7 +23,6 @@ celery_app = Celery(
     include=["app.tasks.rag_tasks", "app.tasks.video_tasks"],
 )
 
-# Explicitly update configuration to ensure forced URLs take precedence
 celery_app.conf.update(
     broker_url=broker_url,
     result_backend=result_backend,
