@@ -25,17 +25,18 @@ class Settings(BaseSettings):
 
     @field_validator("redis_url", "celery_broker_url", "celery_result_backend", mode="after")
     @classmethod
-    def force_redis_db_zero(cls, v: str) -> str:
-        # If the URL ends with /1, /2, etc., force it to /0 for compatibility with managed Redis (e.g. Upstash)
-        import re
-        if v.startswith("redis"):
-            # Matches / followed by digits at the end of the URL (optionally followed by query params)
-            # e.g. redis://host:port/2 -> redis://host:port/0
-            # e.g. rediss://user:pass@host:port/2?ssl_cert_reqs=none -> rediss://user:pass@host:port/0?ssl_cert_reqs=none
-            pattern = r"(\/)\d+(\?|$)"
-            if re.search(pattern, v):
-                return re.sub(pattern, r"\1 0\2", v).replace(" ", "")
-        return v
+    def force_redis_db_zero(cls, v: Any) -> str:
+        s = str(v)
+        if s.startswith("redis"):
+            import re
+            # Replaces /N with /0, preserving query parameters
+            # e.g., /2?ssl=true -> /0?ssl=true, or /2 -> /0
+            new_v = re.sub(r"/(\d+)(\?|$)", r"/0\2", s)
+            if new_v != s:
+                import logging
+                logging.getLogger(__name__).warning(f"Forcing Redis DB 0: {s} -> {new_v}")
+            return new_v
+        return s
 
     vector_backend: str = Field(default="chroma", alias="VECTOR_BACKEND")
     pinecone_api_key: str = Field(default="", alias="PINECONE_API_KEY")

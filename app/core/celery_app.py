@@ -6,11 +6,10 @@ from app.core.config import get_settings
 settings = get_settings()
 
 def _force_db_zero(url: str) -> str:
-    if not url or not url.startswith("redis"):
+    if not url or not isinstance(url, str) or not url.startswith("redis"):
         return url
-    # Use regex to find the database index (e.g., /1, /2) and replace it with /0
-    # This handles both redis:// and rediss:// and supports query parameters
-    return re.sub(r"(\/)\d+(\?|$)", r"\1 0\2", url).replace(" ", "")
+    import re
+    return re.sub(r"/(\d+)(\?|$)", r"/0\2", url)
 
 broker_url = _force_db_zero(settings.celery_broker_url)
 result_backend = _force_db_zero(settings.celery_result_backend)
@@ -28,6 +27,8 @@ celery_app = Celery(
 )
 
 celery_app.conf.update(
+    broker_url=broker_url,
+    result_backend=result_backend,
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",
