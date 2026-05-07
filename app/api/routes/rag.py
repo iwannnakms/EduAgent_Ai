@@ -1,9 +1,10 @@
+import logging
 from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
 
 from celery.result import AsyncResult
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, File, Form, UploadFile, HTTPException
 from pypdf import PdfReader
 
 from app.core.celery_app import celery_app
@@ -20,6 +21,7 @@ from app.models.schemas import (
 from app.services.rag_service import RAGService
 from app.tasks.rag_tasks import ingest_file_task, ingest_text_task, ingest_youtube_task
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/rag", tags=["rag"])
 
 
@@ -49,42 +51,64 @@ async def ingest_text_async(payload: RAGIngestTextRequest) -> TaskAcceptedRespon
 
 @router.post("/ingest/file", response_model=RAGIngestResponse)
 async def ingest_file(document_id: str = Form(...), file: UploadFile = File(...)) -> RAGIngestResponse:
-    content = await file.read()
-    filename = file.filename or "uploaded_file"
-    if filename.lower().endswith(".pdf"):
-        reader = PdfReader(BytesIO(content))
-        text = "\n".join([page.extract_text() or "" for page in reader.pages]).strip()
-    else:
-        text = content.decode("utf-8", errors="ignore")
+    try:
+        content = await file.read()
+        filename = file.filename or "uploaded_file"
+        if filename.lower().endswith(".pdf"):
+            reader = PdfReader(BytesIO(content))
+            text = "\n".join([page.extract_text() or "" for page in reader.pages]).strip()
+        else:
+            text = content.decode("utf-8", errors="ignore")
 
-    service = RAGService()
-    count = service.ingest_text(
-        document_id=document_id,
-        text=text,
-        metadata={"filename": filename},
-    )
-    return RAGIngestResponse(document_id=document_id, chunks_ingested=count, backend=service.backend)
+        service = RAGService()
+        count = service.ingest_text(
+            document_id=document_id,
+            text=text,
+            metadata={"filename": filename},
+        )
+        return RAGIngestResponse(document_id=document_id, chunks_ingested=count, backend=service.backend)
+    except Exception as e:
+        logger.error(f"Sync ingestion failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/ingest/file/async", response_model=TaskAcceptedResponse)
 async def ingest_file_async(document_id: str = Form(...), file: UploadFile = File(...)) -> TaskAcceptedResponse:
     settings = get_settings()
     filename = file.filename or "uploaded_file"
+    
+    # Ensure upload directory exists and is writable
+    upload_path = Path(settings.upload_dir)
+    upload_path.mkdir(parents=True, exist_ok=True)
+    
     suffix = Path(filename).suffix
-    stored_path = Path(settings.upload_dir) / f"{document_id}_{uuid4()}{suffix}"
+    # Sanitize document_id to avoid path issues
+    safe_doc_id = "".join([c if c.isalnum() else "_" for c in document_id])
+    stored_path = upload_path / f"{safe_doc_id}_{uuid4()}{suffix}"
 
-    content = await file.read()
-    stored_path.write_bytes(content)
+    try:
+        content = await file.read()
+        stored_path.write_bytes(content)
+        logger.info(f"Stored file for async ingestion: {stored_path}")
+    except Exception as e:
+        logger.error(f"Failed to store uploaded file: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to store uploaded file: {str(e)}")
 
-    task = ingest_file_task.delay(
-        document_id=document_id,
-        file_path=str(stored_path),
-        metadata={"filename": filename, "stored_path": str(stored_path)},
-    )
-    return TaskAcceptedResponse(
-        task_id=task.id,
-        message="RAG file ingestion started. Poll /api/v1/rag/tasks/{task_id} for status.",
-    )
+    try:
+        task = ingest_file_task.delay(
+            document_id=document_id,
+            file_path=str(stored_path),
+            metadata={"filename": filename, "stored_path": str(stored_path)},
+        )
+        return TaskAcceptedResponse(
+            task_id=task.id,
+            message="RAG file ingestion started. Poll /api/v1/rag/tasks/{task_id} for status.",
+        )
+    except Exception as e:
+        logger.error(f"Failed to enqueue ingestion task: {str(e)}")
+        # Cleanup file if task enqueue fails
+        stored_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=500, detail=f"Failed to enqueue ingestion task: {str(e)}")
 
 
 @router.post("/ingest/youtube", response_model=TaskAcceptedResponse)

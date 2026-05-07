@@ -5,8 +5,13 @@ const getBaseUrl = () => {
   // SSR fallback
   if (typeof window === 'undefined') return "http://localhost:8000/api/v1";
 
-  const { hostname, origin } = window.location;
+  const { hostname, origin, port } = window.location;
   
+  // If we are on a development port (5173), we likely want to talk to the API on 8000
+  if (port === '5173') {
+    return `${window.location.protocol}//${hostname}:8000/api/v1`;
+  }
+
   // If we are on Render/Railway/Custom Domain, use the relative origin
   if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
     return `${origin}/api/v1`;

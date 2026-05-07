@@ -99,8 +99,15 @@ export const ChatPage = () => {
           }
         } catch { clearInterval(pollInterval); }
       }, 2000);
-    } catch {
-      addMessage(activeContextId, { id: `err-${Date.now()}`, role: 'bot', content: "Upload failed.", timestamp: new Date(), isComplete: true });
+    } catch (err: any) {
+      const errorMessage = err instanceof Error ? err.message : "Upload failed.";
+      addMessage(activeContextId, { 
+        id: `err-${Date.now()}`, 
+        role: 'bot', 
+        content: `Upload failed: ${errorMessage}`, 
+        timestamp: new Date(), 
+        isComplete: true 
+      });
     }
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
