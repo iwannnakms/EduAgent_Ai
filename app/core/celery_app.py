@@ -4,12 +4,11 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
-# Use sanitized URLs from settings
+# Use sanitized URLs from settings (forced to DB 0 in config.py)
 broker_url = settings.celery_broker_url
 result_backend = settings.celery_result_backend
 
 # SSL configuration for managed Redis (e.g., Upstash, Heroku, Render)
-# Only apply if using rediss://
 ssl_conf = {
     'ssl_cert_reqs': ssl.CERT_NONE
 } if broker_url.startswith('rediss://') else None

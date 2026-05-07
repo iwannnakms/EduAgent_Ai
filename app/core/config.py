@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
@@ -41,24 +41,28 @@ class Settings(BaseSettings):
     upload_dir: str = Field(default="./data/uploads", alias="UPLOAD_DIR")
     temp_dir: str = Field(default="./data/tmp", alias="TEMP_DIR")
 
-def _fix_redis_url(url: str) -> str:
-    if not url or not isinstance(url, str) or not url.startswith("redis"):
-        return url
-    # Force DB 0
-    new_url = re.sub(r"/(\d+)(\?|$)", r"/0\2", url)
-    if new_url != url:
-        logger.warning(f"Forced Redis DB 0 for URL: {url.split('@')[-1]}") # Log only host for safety
-    return new_url
+    @model_validator(mode="after")
+    def force_db_zero_all(self) -> "Settings":
+        def _fix(v: str) -> str:
+            if isinstance(v, str) and v.startswith("redis"):
+                # Matches /N and replaces with /0
+                return re.sub(r"/(\d+)(\?|$)", r"/0\2", v)
+            return v
+        
+        self.redis_url = _fix(self.redis_url)
+        self.celery_broker_url = _fix(self.celery_broker_url)
+        self.celery_result_backend = _fix(self.celery_result_backend)
+        return self
 
 @lru_cache
 def get_settings() -> Settings:
-    s = Settings()
-    # Explicitly sanitize URLs after loading from environment
-    s.redis_url = _fix_redis_url(s.redis_url)
-    s.celery_broker_url = _fix_redis_url(s.celery_broker_url)
-    s.celery_result_backend = _fix_redis_url(s.celery_result_backend)
-    
-    Path(s.upload_dir).mkdir(parents=True, exist_ok=True)
-    Path(s.temp_dir).mkdir(parents=True, exist_ok=True)
-    Path(s.chroma_persist_dir).mkdir(parents=True, exist_ok=True)
-    return s
+    try:
+        s = Settings()
+        Path(s.upload_dir).mkdir(parents=True, exist_ok=True)
+        Path(s.temp_dir).mkdir(parents=True, exist_ok=True)
+        Path(s.chroma_persist_dir).mkdir(parents=True, exist_ok=True)
+        return s
+    except Exception as e:
+        # Fallback to defaults to prevent startup crash
+        logger.error(f"Failed to load settings: {e}. Using defaults.")
+        return Settings()
