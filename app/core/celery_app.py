@@ -4,7 +4,7 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
-# Use sanitized URLs from settings (forced to DB 0 in config.py)
+# Use sanitized URLs from settings (already forced to DB 0 in config.py)
 broker_url = settings.celery_broker_url
 result_backend = settings.celery_result_backend
 
@@ -20,7 +20,10 @@ celery_app = Celery(
     include=["app.tasks.rag_tasks", "app.tasks.video_tasks"],
 )
 
+# Explicitly update configuration to ensure forced URLs take precedence
 celery_app.conf.update(
+    broker_url=broker_url,
+    result_backend=result_backend,
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",

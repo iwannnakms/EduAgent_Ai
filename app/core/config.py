@@ -3,11 +3,24 @@ import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse, urlunparse
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
+
+def _force_db_zero(url: Any) -> str:
+    s = str(url)
+    if not s.startswith("redis"):
+        return s
+    try:
+        u = urlparse(s)
+        # Force path to /0
+        new_u = u._replace(path="/0")
+        return urlunparse(new_u)
+    except Exception:
+        return s
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
@@ -42,27 +55,16 @@ class Settings(BaseSettings):
     temp_dir: str = Field(default="./data/tmp", alias="TEMP_DIR")
 
     @model_validator(mode="after")
-    def force_db_zero_all(self) -> "Settings":
-        def _fix(v: str) -> str:
-            if isinstance(v, str) and v.startswith("redis"):
-                # Matches /N and replaces with /0
-                return re.sub(r"/(\d+)(\?|$)", r"/0\2", v)
-            return v
-        
-        self.redis_url = _fix(self.redis_url)
-        self.celery_broker_url = _fix(self.celery_broker_url)
-        self.celery_result_backend = _fix(self.celery_result_backend)
+    def sanitize_redis_urls(self) -> "Settings":
+        self.redis_url = _force_db_zero(self.redis_url)
+        self.celery_broker_url = _force_db_zero(self.celery_broker_url)
+        self.celery_result_backend = _force_db_zero(self.celery_result_backend)
         return self
 
 @lru_cache
 def get_settings() -> Settings:
-    try:
-        s = Settings()
-        Path(s.upload_dir).mkdir(parents=True, exist_ok=True)
-        Path(s.temp_dir).mkdir(parents=True, exist_ok=True)
-        Path(s.chroma_persist_dir).mkdir(parents=True, exist_ok=True)
-        return s
-    except Exception as e:
-        # Fallback to defaults to prevent startup crash
-        logger.error(f"Failed to load settings: {e}. Using defaults.")
-        return Settings()
+    s = Settings()
+    Path(s.upload_dir).mkdir(parents=True, exist_ok=True)
+    Path(s.temp_dir).mkdir(parents=True, exist_ok=True)
+    Path(s.chroma_persist_dir).mkdir(parents=True, exist_ok=True)
+    return s
