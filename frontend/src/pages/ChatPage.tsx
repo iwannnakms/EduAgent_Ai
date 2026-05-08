@@ -48,10 +48,10 @@ export const ChatPage = () => {
     }
   }, [isAtBottom]);
 
-  // Handle auto-scroll on new messages
+  // Handle auto-scroll only on context change
   useEffect(() => {
     scrollToBottom(true);
-  }, [activeContextId, messages.length, scrollToBottom]);
+  }, [activeContextId, scrollToBottom]);
 
   const handleAddContext = () => {
     if (newContextName.trim()) {
