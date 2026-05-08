@@ -128,7 +128,7 @@ export const ChatPage = () => {
         content: response.answer,
         sources: response.sources,
         timestamp: new Date(),
-        isComplete: false
+        isComplete: true
       });
     } catch {
       addMessage(activeContextId, { id: `err-${Date.now()}`, role: 'bot', content: "Brain disconnected. Try again.", timestamp: new Date(), isComplete: true });
