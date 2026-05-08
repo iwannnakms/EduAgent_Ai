@@ -1,4 +1,3 @@
-import base64
 import logging
 from io import BytesIO
 from pathlib import Path
@@ -79,13 +78,16 @@ async def ingest_file_async(document_id: str = Form(...), file: UploadFile = Fil
     filename = file.filename or "uploaded_file"
     
     try:
+        # Read file as raw bytes (most memory efficient)
         content = await file.read()
-        content_b64 = base64.b64encode(content).decode("utf-8")
         
-        task = ingest_file_task.delay(
-            document_id=document_id,
-            file_content_b64=content_b64,
-            metadata={"filename": filename},
+        # Dispatch task with raw bytes (supported via 'pickle' serializer in celery_app.py)
+        task = ingest_file_task.apply_async(
+            kwargs={
+                "document_id": document_id,
+                "file_bytes": content,
+                "metadata": {"filename": filename},
+            }
         )
         return TaskAcceptedResponse(
             task_id=task.id,

@@ -1,4 +1,3 @@
-import base64
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -20,29 +19,18 @@ def ingest_text_task(document_id: str, text: str, metadata: Dict[str, Any]) -> D
 @celery_app.task(name="tasks.rag.ingest_file")
 def ingest_file_task(
     document_id: str, 
-    file_path: Optional[str] = None, 
-    file_content_b64: Optional[str] = None,
+    file_bytes: bytes,
     metadata: Dict[str, Any] = None
 ) -> Dict[str, Any]:
     metadata = metadata or {}
     filename = metadata.get("filename", "unknown_file")
     
     try:
-        if file_content_b64:
-            content = base64.b64decode(file_content_b64)
-        elif file_path:
-            path = Path(file_path)
-            content = path.read_bytes()
-            # Cleanup if it was a local file
-            path.unlink(missing_ok=True)
-        else:
-            raise ValueError("No file content or path provided")
-
         if filename.lower().endswith(".pdf"):
-            reader = PdfReader(BytesIO(content))
+            reader = PdfReader(BytesIO(file_bytes))
             text = "\n".join([page.extract_text() or "" for page in reader.pages]).strip()
         else:
-            text = content.decode("utf-8", errors="ignore")
+            text = file_bytes.decode("utf-8", errors="ignore")
 
         if not text:
             raise ValueError(f"No text extracted from {filename}")
