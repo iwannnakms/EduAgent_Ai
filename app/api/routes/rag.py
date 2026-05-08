@@ -1,14 +1,13 @@
+import base64
+import zlib
 import logging
 from io import BytesIO
-from pathlib import Path
-from uuid import uuid4
 
 from celery.result import AsyncResult
 from fastapi import APIRouter, File, Form, UploadFile, HTTPException
 from pypdf import PdfReader
 
 from app.core.celery_app import celery_app
-from app.core.config import get_settings
 from app.models.schemas import (
     RAGIngestResponse,
     RAGIngestTextRequest,
@@ -37,15 +36,18 @@ async def ingest_text(payload: RAGIngestTextRequest) -> RAGIngestResponse:
 
 @router.post("/ingest/text/async", response_model=TaskAcceptedResponse)
 async def ingest_text_async(payload: RAGIngestTextRequest) -> TaskAcceptedResponse:
-    from app.tasks.rag_tasks import ingest_text_task
-    task = ingest_text_task.delay(
-        document_id=payload.document_id,
-        text=payload.text,
-        metadata=payload.metadata,
+    # Use send_task to avoid circular imports
+    task = celery_app.send_task(
+        "tasks.rag.ingest_text",
+        kwargs={
+            "document_id": payload.document_id,
+            "text": payload.text,
+            "metadata": payload.metadata,
+        }
     )
     return TaskAcceptedResponse(
         task_id=task.id,
-        message="RAG text ingestion started. Poll /api/v1/rag/tasks/{task_id} for status.",
+        message="RAG text ingestion started.",
     )
 
 
@@ -74,48 +76,49 @@ async def ingest_file(document_id: str = Form(...), file: UploadFile = File(...)
 
 @router.post("/ingest/file/async", response_model=TaskAcceptedResponse)
 async def ingest_file_async(document_id: str = Form(...), file: UploadFile = File(...)) -> TaskAcceptedResponse:
-    from app.tasks.rag_tasks import ingest_text_task
     filename = file.filename or "uploaded_file"
     
     try:
-        # Extract text in the API layer to avoid sending large binary blobs to Redis
+        # 1. Read file
         content = await file.read()
-        if filename.lower().endswith(".pdf"):
-            reader = PdfReader(BytesIO(content))
-            text = "\n".join([page.extract_text() or "" for page in reader.pages]).strip()
-        else:
-            text = content.decode("utf-8", errors="ignore")
-            
-        if not text:
-            raise ValueError(f"No readable text found in {filename}")
-
-        # Send the lightweight extracted text to the worker
-        task = ingest_text_task.delay(
-            document_id=document_id,
-            text=text,
-            metadata={"filename": filename},
+        
+        # 2. Compress and encode (extremely efficient for text-based PDFs)
+        compressed_data = zlib.compress(content)
+        compressed_b64 = base64.b64encode(compressed_data).decode("utf-8")
+        
+        # 3. Dispatch using send_task (No Imports = No Crashes)
+        task = celery_app.send_task(
+            "tasks.rag.ingest_file_compressed",
+            kwargs={
+                "document_id": document_id,
+                "compressed_b64": compressed_b64,
+                "metadata": {"filename": filename},
+            }
         )
+        
         return TaskAcceptedResponse(
             task_id=task.id,
-            message=f"Processing {filename}... Ingestion started.",
+            message=f"Received {filename}. Ingestion started.",
         )
     except Exception as e:
-        logger.error(f"Ingestion failed: {str(e)}")
+        logger.error(f"Ingestion dispatch failed: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/ingest/youtube", response_model=TaskAcceptedResponse)
 async def ingest_youtube(payload: RAGIngestYoutubeRequest) -> TaskAcceptedResponse:
-    from app.tasks.rag_tasks import ingest_youtube_task
-    task = ingest_youtube_task.delay(
-        document_id=payload.document_id,
-        youtube_url=str(payload.youtube_url),
-        target_language=payload.target_language,
-        metadata=payload.metadata,
+    task = celery_app.send_task(
+        "tasks.rag.ingest_youtube",
+        kwargs={
+            "document_id": payload.document_id,
+            "youtube_url": str(payload.youtube_url),
+            "target_language": payload.target_language,
+            "metadata": payload.metadata,
+        }
     )
     return TaskAcceptedResponse(
         task_id=task.id,
-        message="RAG YouTube ingestion started. Poll /api/v1/rag/tasks/{task_id} for status.",
+        message="RAG YouTube ingestion started.",
     )
 
 
