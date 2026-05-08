@@ -1,13 +1,21 @@
+import ssl
 from celery import Celery
 from app.core.config import get_settings
 
 settings = get_settings()
 
-# Minimal Celery setup - avoids circular imports and complex SSL logic
+# Support SSL for rediss:// URLs commonly used in cloud environments
+broker_url = settings.celery_broker_url
+result_backend = settings.celery_result_backend
+
+ssl_conf = {
+    'ssl_cert_reqs': ssl.CERT_NONE
+} if broker_url.startswith('rediss://') else None
+
 celery_app = Celery(
     "edu_ai_tasks",
-    broker=settings.celery_broker_url,
-    backend=settings.celery_result_backend,
+    broker=broker_url,
+    backend=result_backend,
 )
 
 celery_app.conf.update(
@@ -16,6 +24,7 @@ celery_app.conf.update(
     accept_content=["json"],
     timezone="UTC",
     enable_utc=True,
-    # Standard connection retries
+    broker_use_ssl=ssl_conf,
+    redis_backend_use_ssl=ssl_conf,
     broker_connection_retry_on_startup=True,
 )
