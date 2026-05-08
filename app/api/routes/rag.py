@@ -74,24 +74,30 @@ async def ingest_file(document_id: str = Form(...), file: UploadFile = File(...)
 
 @router.post("/ingest/file/async", response_model=TaskAcceptedResponse)
 async def ingest_file_async(document_id: str = Form(...), file: UploadFile = File(...)) -> TaskAcceptedResponse:
-    from app.tasks.rag_tasks import ingest_file_task
+    from app.tasks.rag_tasks import ingest_text_task
     filename = file.filename or "uploaded_file"
     
     try:
-        # Read file as raw bytes (most memory efficient)
+        # Extract text in the API layer to avoid sending large binary blobs to Redis
         content = await file.read()
-        
-        # Dispatch task with raw bytes (supported via 'pickle' serializer in celery_app.py)
-        task = ingest_file_task.apply_async(
-            kwargs={
-                "document_id": document_id,
-                "file_bytes": content,
-                "metadata": {"filename": filename},
-            }
+        if filename.lower().endswith(".pdf"):
+            reader = PdfReader(BytesIO(content))
+            text = "\n".join([page.extract_text() or "" for page in reader.pages]).strip()
+        else:
+            text = content.decode("utf-8", errors="ignore")
+            
+        if not text:
+            raise ValueError(f"No readable text found in {filename}")
+
+        # Send the lightweight extracted text to the worker
+        task = ingest_text_task.delay(
+            document_id=document_id,
+            text=text,
+            metadata={"filename": filename},
         )
         return TaskAcceptedResponse(
             task_id=task.id,
-            message="RAG file ingestion started. Poll /api/v1/rag/tasks/{task_id} for status.",
+            message=f"Processing {filename}... Ingestion started.",
         )
     except Exception as e:
         logger.error(f"Ingestion failed: {str(e)}")

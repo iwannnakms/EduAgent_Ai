@@ -4,7 +4,6 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
-# Standard SSL configuration for secure Redis (rediss://)
 broker_url = settings.celery_broker_url
 result_backend = settings.celery_result_backend
 
@@ -19,9 +18,9 @@ celery_app = Celery(
 )
 
 celery_app.conf.update(
-    task_serializer="pickle",  # Using pickle for direct binary (bytes) support
-    result_serializer="pickle",
-    accept_content=["pickle", "json"],
+    task_serializer="json",
+    result_serializer="json",
+    accept_content=["json"],
     timezone="UTC",
     enable_utc=True,
     broker_use_ssl=ssl_conf,
