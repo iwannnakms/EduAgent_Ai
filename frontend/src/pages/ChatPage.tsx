@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Plus, Paperclip, Mic, Bot, User, Trash2, Sidebar as SidebarIcon, Search, Database, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { api, type RAGSource } from '../api/client';
 import { cn } from '../layout/AppLayout';
 import { useChat, type Message } from '../context/ChatContext';
