@@ -84,8 +84,12 @@ class RAGService:
 
     def _vector_search(self, query: str, top_k: int, document_id: Optional[str] = None) -> List[SearchResult]:
         query_embedding = self._embed(query)
+        
+        # Normalize document_id: empty string should be None for global search
+        target_id = document_id if document_id and document_id.strip() else None
+
         if self.backend == "pinecone":
-            filter_dict = {"document_id": document_id} if document_id else None
+            filter_dict = {"document_id": target_id} if target_id else None
             matches = self.pinecone_index.query(
                 vector=query_embedding,
                 top_k=top_k,
@@ -103,7 +107,7 @@ class RAGService:
             ]
 
         # Chroma filtering
-        where = {"document_id": document_id} if document_id else None
+        where = {"document_id": target_id} if target_id else None
         result = self.chroma_collection.query(
             query_embeddings=[query_embedding],
             n_results=top_k,
