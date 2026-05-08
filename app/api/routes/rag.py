@@ -1,9 +1,11 @@
+import base64
+import logging
 from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
 
 from celery.result import AsyncResult
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, File, Form, UploadFile, HTTPException
 from pypdf import PdfReader
 
 from app.core.celery_app import celery_app
@@ -20,6 +22,7 @@ from app.models.schemas import (
 from app.services.rag_service import RAGService
 from app.tasks.rag_tasks import ingest_file_task, ingest_text_task, ingest_youtube_task
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/rag", tags=["rag"])
 
 
@@ -68,23 +71,24 @@ async def ingest_file(document_id: str = Form(...), file: UploadFile = File(...)
 
 @router.post("/ingest/file/async", response_model=TaskAcceptedResponse)
 async def ingest_file_async(document_id: str = Form(...), file: UploadFile = File(...)) -> TaskAcceptedResponse:
-    settings = get_settings()
     filename = file.filename or "uploaded_file"
-    suffix = Path(filename).suffix
-    stored_path = Path(settings.upload_dir) / f"{document_id}_{uuid4()}{suffix}"
-
-    content = await file.read()
-    stored_path.write_bytes(content)
-
-    task = ingest_file_task.delay(
-        document_id=document_id,
-        file_path=str(stored_path),
-        metadata={"filename": filename, "stored_path": str(stored_path)},
-    )
-    return TaskAcceptedResponse(
-        task_id=task.id,
-        message="RAG file ingestion started. Poll /api/v1/rag/tasks/{task_id} for status.",
-    )
+    
+    try:
+        content = await file.read()
+        content_b64 = base64.b64encode(content).decode("utf-8")
+        
+        task = ingest_file_task.delay(
+            document_id=document_id,
+            file_content_b64=content_b64,
+            metadata={"filename": filename},
+        )
+        return TaskAcceptedResponse(
+            task_id=task.id,
+            message="RAG file ingestion started. Poll /api/v1/rag/tasks/{task_id} for status.",
+        )
+    except Exception as e:
+        logger.error(f"Ingestion failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/ingest/youtube", response_model=TaskAcceptedResponse)

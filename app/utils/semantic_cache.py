@@ -1,5 +1,6 @@
 import hashlib
 import json
+import ssl
 from typing import Any, Dict, Optional
 import numpy as np
 import redis
@@ -16,7 +17,12 @@ class SemanticCache:
         self.settings = get_settings()
         self.client = get_gemini_client()
         
-        self.redis_client = redis.Redis.from_url(self.settings.redis_url, decode_responses=True)
+        # Support SSL for Upstash/Cloud Redis
+        redis_kwargs = {"decode_responses": True}
+        if self.settings.redis_url.startswith("rediss://"):
+            redis_kwargs["ssl_cert_reqs"] = ssl.CERT_NONE
+            
+        self.redis_client = redis.Redis.from_url(self.settings.redis_url, **redis_kwargs)
         self.embedding_model = resolve_model(self.settings.gemini_embedding_model, "embedContent")
 
     def _cache_index_key(self, scope: str) -> str:

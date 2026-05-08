@@ -1,7 +1,14 @@
+import ssl
 from celery import Celery
 from app.core.config import get_settings
 
 settings = get_settings()
+
+# Standard SSL configuration for secure Redis (rediss://)
+# This is a requirement for many cloud providers (Upstash, Render, etc.)
+broker_use_ssl = {
+    'ssl_cert_reqs': ssl.CERT_NONE
+} if settings.celery_broker_url.startswith('rediss://') else False
 
 celery_app = Celery(
     "edu_ai_tasks",
@@ -16,4 +23,6 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
+    broker_use_ssl=broker_use_ssl,
+    redis_backend_use_ssl=broker_use_ssl,
 )
