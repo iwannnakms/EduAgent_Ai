@@ -199,7 +199,11 @@ export const ChatPage = () => {
                 <div className="flex flex-col gap-2 group max-w-[85%]">
                   <div className={cn("px-5 py-3.5 rounded-2xl text-sm leading-relaxed shadow-sm min-w-[50px]", msg.role === 'user' ? "bg-electric-600 text-white rounded-tr-none" : "glass-card text-slate-200 rounded-tl-none border-slate-700/50")}>
                     {msg.role === 'bot' ? (
-                      <TypewriterMessage content={msg.content} isAlreadyComplete={msg.isComplete} onComplete={() => markMessageComplete(activeContextId, msg.id)} onHeightChange={scrollToBottom} />
+                      <div className="prose prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-slate-900/50 prose-pre:border prose-pre:border-slate-800 prose-li:my-1">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {msg.content}
+                        </ReactMarkdown>
+                      </div>
                     ) : ( msg.content )}
                   </div>
                   {msg.isComplete && msg.sources && msg.sources.length > 0 && (
