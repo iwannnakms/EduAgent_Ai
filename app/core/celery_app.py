@@ -4,17 +4,18 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
-# Standard SSL configuration for secure Redis (rediss://)
-# This is a requirement for many cloud providers (Upstash, Render, etc.)
-broker_use_ssl = {
+# Support SSL for rediss:// URLs commonly used in cloud environments
+broker_url = settings.celery_broker_url
+result_backend = settings.celery_result_backend
+
+ssl_conf = {
     'ssl_cert_reqs': ssl.CERT_NONE
-} if settings.celery_broker_url.startswith('rediss://') else False
+} if broker_url.startswith('rediss://') else None
 
 celery_app = Celery(
     "edu_ai_tasks",
-    broker=settings.celery_broker_url,
-    backend=settings.celery_result_backend,
-    include=["app.tasks.rag_tasks", "app.tasks.video_tasks"],
+    broker=broker_url,
+    backend=result_backend,
 )
 
 celery_app.conf.update(
@@ -23,6 +24,6 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
-    broker_use_ssl=broker_use_ssl,
-    redis_backend_use_ssl=broker_use_ssl,
+    broker_use_ssl=ssl_conf,
+    redis_backend_use_ssl=ssl_conf,
 )

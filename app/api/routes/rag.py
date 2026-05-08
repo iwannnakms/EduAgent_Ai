@@ -20,7 +20,6 @@ from app.models.schemas import (
     TaskStatusResponse,
 )
 from app.services.rag_service import RAGService
-from app.tasks.rag_tasks import ingest_file_task, ingest_text_task, ingest_youtube_task
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/rag", tags=["rag"])
@@ -39,6 +38,7 @@ async def ingest_text(payload: RAGIngestTextRequest) -> RAGIngestResponse:
 
 @router.post("/ingest/text/async", response_model=TaskAcceptedResponse)
 async def ingest_text_async(payload: RAGIngestTextRequest) -> TaskAcceptedResponse:
+    from app.tasks.rag_tasks import ingest_text_task
     task = ingest_text_task.delay(
         document_id=payload.document_id,
         text=payload.text,
@@ -52,25 +52,30 @@ async def ingest_text_async(payload: RAGIngestTextRequest) -> TaskAcceptedRespon
 
 @router.post("/ingest/file", response_model=RAGIngestResponse)
 async def ingest_file(document_id: str = Form(...), file: UploadFile = File(...)) -> RAGIngestResponse:
-    content = await file.read()
-    filename = file.filename or "uploaded_file"
-    if filename.lower().endswith(".pdf"):
-        reader = PdfReader(BytesIO(content))
-        text = "\n".join([page.extract_text() or "" for page in reader.pages]).strip()
-    else:
-        text = content.decode("utf-8", errors="ignore")
+    try:
+        content = await file.read()
+        filename = file.filename or "uploaded_file"
+        if filename.lower().endswith(".pdf"):
+            reader = PdfReader(BytesIO(content))
+            text = "\n".join([page.extract_text() or "" for page in reader.pages]).strip()
+        else:
+            text = content.decode("utf-8", errors="ignore")
 
-    service = RAGService()
-    count = service.ingest_text(
-        document_id=document_id,
-        text=text,
-        metadata={"filename": filename},
-    )
-    return RAGIngestResponse(document_id=document_id, chunks_ingested=count, backend=service.backend)
+        service = RAGService()
+        count = service.ingest_text(
+            document_id=document_id,
+            text=text,
+            metadata={"filename": filename},
+        )
+        return RAGIngestResponse(document_id=document_id, chunks_ingested=count, backend=service.backend)
+    except Exception as e:
+        logger.error(f"Sync ingestion failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/ingest/file/async", response_model=TaskAcceptedResponse)
 async def ingest_file_async(document_id: str = Form(...), file: UploadFile = File(...)) -> TaskAcceptedResponse:
+    from app.tasks.rag_tasks import ingest_file_task
     filename = file.filename or "uploaded_file"
     
     try:
@@ -93,6 +98,7 @@ async def ingest_file_async(document_id: str = Form(...), file: UploadFile = Fil
 
 @router.post("/ingest/youtube", response_model=TaskAcceptedResponse)
 async def ingest_youtube(payload: RAGIngestYoutubeRequest) -> TaskAcceptedResponse:
+    from app.tasks.rag_tasks import ingest_youtube_task
     task = ingest_youtube_task.delay(
         document_id=payload.document_id,
         youtube_url=str(payload.youtube_url),
