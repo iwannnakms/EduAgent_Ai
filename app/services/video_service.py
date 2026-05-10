@@ -52,6 +52,10 @@ class VideoService:
             "--no-playlist",
             "--ffmpeg-location", ffmpeg_path,
             "--js-runtimes", "node",
+            # Use specific clients and user agents to bypass 429/Bot detection
+            "--extractor-args", "youtube:player_client=android,web_embedded",
+            "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "--referer", "https://www.youtube.com/",
             "-o",
             output_template,
             youtube_url,
