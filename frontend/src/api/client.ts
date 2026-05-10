@@ -1,21 +1,30 @@
 const getBaseUrl = () => {
-  if (import.meta.env.VITE_API_BASE_URL) return import.meta.env.VITE_API_BASE_URL;
-  if (typeof window === 'undefined') return "http://localhost:8000/api/v1";
+  let url = import.meta.env.VITE_API_BASE_URL;
   
-  const { hostname, origin } = window.location;
-  
-  if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return "http://localhost:8000/api/v1";
+  if (!url) {
+    if (typeof window === 'undefined') {
+      url = "http://localhost:8000/api/v1";
+    } else {
+      const { hostname, origin } = window.location;
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        url = "http://localhost:8000/api/v1";
+      } else {
+        url = `${origin}/api/v1`;
+      }
+    }
   }
   
-  // If the frontend is served by the backend, it will be on the same origin
-  return `${origin}/api/v1`;
+  // Remove trailing slash if present to avoid double slashes when concatenated
+  return url.replace(/\/$/, "");
 };
 
 const API_BASE_URL = getBaseUrl();
 
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
-  const url = `${API_BASE_URL}${path}`;
+  // Ensure path starts with a slash
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+  const url = `${API_BASE_URL}${cleanPath}`;
+  
   try {
     const response = await fetch(url, {
       headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
@@ -30,7 +39,7 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
   } catch (error) {
     console.error(`Fetch error at ${url}:`, error);
     if (error instanceof TypeError && error.message === "Failed to fetch") {
-      throw new Error(`Failed to connect to backend at ${API_BASE_URL}. Ensure the backend is running.`);
+      throw new Error(`Failed to connect to backend at ${API_BASE_URL}. Ensure the backend is running and CORS is allowed.`);
     }
     throw error;
   }
@@ -80,9 +89,11 @@ export const api = {
     const formData = new FormData();
     formData.append("document_id", documentId);
     formData.append("file", file);
+    // Use the same robust URL logic for file uploads
     return fetch(`${API_BASE_URL}/rag/ingest/file/async`, { method: "POST", body: formData }).then(async (res) => {
       if (!res.ok) {
-        throw new Error(`${res.status} ${res.statusText}: ${await res.text()}`);
+        const errBody = await res.text();
+        throw new Error(`${res.status} ${res.statusText}: ${errBody}`);
       }
       return (await res.json()) as TaskAccepted;
     });

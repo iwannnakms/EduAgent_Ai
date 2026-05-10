@@ -42,7 +42,6 @@ class VideoService:
         output_stem = Path(self.settings.temp_dir) / f"yt_{uuid4()}"
         output_template = str(output_stem) + ".%(ext)s"
         
-        # Explicitly find ffmpeg location
         ffmpeg_path = shutil.which("ffmpeg") or "/usr/bin/ffmpeg"
         
         command = [
@@ -52,7 +51,6 @@ class VideoService:
             "mp3",
             "--no-playlist",
             "--ffmpeg-location", ffmpeg_path,
-            # Hint for JS runtime (Node.js is installed in Dockerfile)
             "--js-runtimes", "node",
             "-o",
             output_template,
@@ -80,8 +78,9 @@ class VideoService:
 
     def transcribe_audio(self, audio_path: Path, target_language: str | None = "en") -> str:
         try:
+            # FIX: Correct argument name is 'file', not 'path' in the new google-genai SDK
             uploaded_file = self.client.files.upload(
-                path=str(audio_path),
+                file=str(audio_path),
                 config={'mime_type': 'audio/mpeg'}
             )
             
