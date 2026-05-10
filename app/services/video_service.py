@@ -39,56 +39,53 @@ class VideoService:
     def _extract_audio(self, youtube_url: str) -> Path:
         output_stem = Path(self.settings.temp_dir) / f"yt_{uuid4()}"
         
-        # DEFINITIVE FIX: Use yt-dlp Python library directly.
-        # This allows us to disable the internal ffmpeg/ffprobe checks completely.
+        # Robust format selection: try m4a, then mp4, then any audio
         ydl_opts = {
-            'format': 'bestaudio[ext=m4a]/bestaudio/best',
+            'format': 'ba[ext=m4a]/ba[ext=mp4]/ba/best',
             'outtmpl': str(output_stem) + '.%(ext)s',
             'quiet': True,
             'no_warnings': True,
             'nocheckcertificate': True,
-            'ignoreerrors': False,
-            'logtostderr': False,
-            'addmetadata': False,
-            'writethumbnail': False,
-            'no_color': True,
-            # CRITICAL: Tell yt-dlp to NEVER touch ffmpeg or ffprobe
             'postprocessors': [],
             'prefer_ffmpeg': False,
             'fixup': 'never',
-            # Bypassing 429/Bot detection using iOS client simulation
-            'user_agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'referer': 'https://www.youtube.com/',
-            'extractor_args': {'youtube': {'player_client': ['ios', 'web_embedded']}},
+            # Broaden clients to see more formats
+            'extractor_args': {'youtube': {'player_client': ['android', 'ios', 'web_embedded']}},
         }
         
-        # Load cookies if they exist
         cookies_path = Path("cookies.txt")
         if cookies_path.exists():
             ydl_opts['cookiefile'] = str(cookies_path)
 
         try:
-            logger.info(f"Extracting native audio using Python library. URL: {youtube_url}")
+            logger.info(f"Extracting native audio (flexible format). URL: {youtube_url}")
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([youtube_url])
         except Exception as e:
             err_msg = str(e)
-            logger.error(f"yt-dlp library failure: {err_msg}")
+            logger.error(f"yt-dlp failure: {err_msg}")
             if "confirm you" in err_msg or "429" in err_msg:
-                raise RuntimeError("YouTube is temporarily blocking requests from this server. Try again in an hour.")
+                raise RuntimeError("YouTube is blocking this cloud server. Please try a different video or try again later.")
             raise RuntimeError(f"Failed to extract audio: {err_msg}")
 
-        # Find the resulting file
+        # Find the resulting file and its actual extension
         matches = list(Path(self.settings.temp_dir).glob(f"{output_stem.name}.*"))
         if not matches:
             raise FileNotFoundError("Audio extraction failed: file was not saved.")
         return matches[0]
 
     def transcribe_audio(self, audio_path: Path, target_language: str | None = "en") -> str:
+        # Map extension to correct Gemini mime type
+        ext = audio_path.suffix.lower()
+        mime_type = 'audio/mp4' if ext in ['.m4a', '.mp4'] else 'audio/mpeg'
+        if ext == '.wav': mime_type = 'audio/wav'
+        
         try:
             uploaded_file = self.client.files.upload(
                 file=str(audio_path),
-                config={'mime_type': 'audio/mp4'}
+                config={'mime_type': mime_type}
             )
             prompt = (
                 "Transcribe this educational audio faithfully. "
