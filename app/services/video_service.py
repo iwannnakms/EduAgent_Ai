@@ -1,6 +1,8 @@
 import subprocess
 import re
 import logging
+import shutil
+import os
 from pathlib import Path
 from typing import Optional
 from uuid import uuid4
@@ -40,27 +42,35 @@ class VideoService:
         output_stem = Path(self.settings.temp_dir) / f"yt_{uuid4()}"
         output_template = str(output_stem) + ".%(ext)s"
         
-        cookies_path = Path("cookies.txt")
+        # Explicitly find ffmpeg location
+        ffmpeg_path = shutil.which("ffmpeg") or "/usr/bin/ffmpeg"
+        
         command = [
             "yt-dlp",
             "-x",
             "--audio-format",
             "mp3",
             "--no-playlist",
+            "--ffmpeg-location", ffmpeg_path,
+            # Hint for JS runtime (Node.js is installed in Dockerfile)
+            "--js-runtimes", "node",
             "-o",
             output_template,
             youtube_url,
         ]
         
+        cookies_path = Path("cookies.txt")
         if cookies_path.exists():
             command.extend(["--cookies", str(cookies_path)])
             
         try:
+            logger.info(f"Extracting audio using command: {' '.join(command)}")
             subprocess.run(command, check=True, capture_output=True, text=True)
         except subprocess.CalledProcessError as e:
             error_msg = f"yt-dlp failed with exit code {e.returncode}.\nSTDERR: {e.stderr}"
             if "confirm you’re not a bot" in e.stderr:
                 error_msg += "\n\nHint: YouTube is blocking this request. Try adding a 'cookies.txt' file."
+            logger.error(error_msg)
             raise RuntimeError(error_msg) from e
 
         matches = list(Path(self.settings.temp_dir).glob(f"{output_stem.name}.*"))
@@ -69,9 +79,7 @@ class VideoService:
         return matches[0]
 
     def transcribe_audio(self, audio_path: Path, target_language: str | None = "en") -> str:
-        # Upload the file using the new SDK
         try:
-            # Explicitly set mime_type as required by the new SDK
             uploaded_file = self.client.files.upload(
                 path=str(audio_path),
                 config={'mime_type': 'audio/mpeg'}
@@ -80,7 +88,6 @@ class VideoService:
             prompt = (
                 "Transcribe this educational audio faithfully. "
                 "Use clear paragraph breaks and punctuation. "
-                "If there are distinct speakers or sections, indicate them with bold headers. "
                 f"Target language: {target_language or 'auto-detect'}."
             )
             
@@ -88,8 +95,6 @@ class VideoService:
                 model=self.audio_model_name,
                 contents=[prompt, uploaded_file]
             )
-            
-            # Cleanup: File is automatically deleted after some time or can be managed
             return response.text or ""
         except Exception as e:
             logger.error(f"Transcription failed: {str(e)}")
@@ -97,14 +102,9 @@ class VideoService:
 
     def summarize_transcript(self, transcript: str, max_summary_tokens: int = 350) -> str:
         prompt = (
-            "Summarize the following educational transcript into high-quality study notes using Markdown. "
-            "Structure it exactly like this:\n"
-            "1. # Title: A concise title for the video\n"
-            "2. ## Overview: A brief 2-3 sentence high-level summary.\n"
-            "3. ## Key Takeaways: A bulleted list of the most important points.\n"
-            "4. ## Detailed Summary: Break down the content into logical sections with sub-headers.\n"
-            f"Aim for around {max_summary_tokens} tokens worth of detail.\n\n"
-            f"Transcript:\n{transcript}"
+            "Summarize the following educational transcript into study notes using Markdown.\n"
+            "Structure:\n1. # Title\n2. ## Overview\n3. ## Key Takeaways\n4. ## Detailed Summary\n"
+            f"Aim for {max_summary_tokens} tokens.\n\nTranscript:\n{transcript}"
         )
         try:
             response = self.client.models.generate_content(
