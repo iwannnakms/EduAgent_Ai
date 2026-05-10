@@ -15,7 +15,7 @@ spec:
       containers:
       - name: worker
         image: edu-ai-api:latest
-        command: ["celery", "-A", "worker.celery_app", "worker", "-l", "info"]
+        command: ["celery", "-A", "worker.celery_app", "worker", "--pool=threads", "--concurrency=4", "-l", "info"]
         envFrom:
         - configMapRef:
             name: edu-ai-config

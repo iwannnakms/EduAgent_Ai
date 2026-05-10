@@ -10,7 +10,7 @@ export PYTHONPATH=$PYTHONPATH:.
 
 # 3. Start the Celery Worker in the background
 echo "Starting Celery Worker..."
-celery -A worker.celery_app worker --loglevel=info &
+celery -A worker.celery_app worker --pool=threads --concurrency=4 --loglevel=info &
 
 # 4. Start the FastAPI server (this remains in the foreground)
 echo "Starting FastAPI API on port $PORT..."

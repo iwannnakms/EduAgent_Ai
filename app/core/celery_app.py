@@ -31,6 +31,9 @@ celery_app.conf.update(
     broker_use_ssl=ssl_conf,
     redis_backend_use_ssl=ssl_conf,
     broker_connection_retry_on_startup=True,
+    task_track_started=True,
+    # CRITICAL FIX: Change default queue to avoid poisoned tasks from previous runs
+    task_default_queue="edu_ai_queue_v2",
     # This ensures that the worker registers tasks correctly
     imports=("app.tasks.rag_tasks", "app.tasks.video_tasks"),
 )

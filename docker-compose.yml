@@ -27,7 +27,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: edu-ai-worker
-    command: celery -A worker.celery_app worker -l info
+    command: celery -A worker.celery_app worker --pool=threads --concurrency=4 -l info
     env_file:
       - .env
     environment:
