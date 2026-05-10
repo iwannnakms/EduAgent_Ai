@@ -3,8 +3,10 @@ import ssl
 from celery import Celery
 from app.core.config import get_settings
 
-# This load will force os.environ to use database 0
+# Force environment variables to be set before Celery even thinks about them
 settings = get_settings()
+os.environ["CELERY_BROKER_URL"] = settings.celery_broker_url
+os.environ["CELERY_RESULT_BACKEND"] = settings.celery_result_backend
 
 broker_url = settings.celery_broker_url
 result_backend = settings.celery_result_backend
@@ -29,7 +31,6 @@ celery_app.conf.update(
     broker_use_ssl=ssl_conf,
     redis_backend_use_ssl=ssl_conf,
     broker_connection_retry_on_startup=True,
+    # This ensures that the worker registers tasks correctly
+    imports=("app.tasks.rag_tasks", "app.tasks.video_tasks"),
 )
-
-# Force the worker to discover tasks across the 'app.tasks' package
-celery_app.autodiscover_tasks(['app.tasks'], force=True)

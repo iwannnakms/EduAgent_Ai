@@ -1,6 +1,7 @@
 import base64
 import zlib
 from io import BytesIO
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from pypdf import PdfReader
@@ -55,15 +56,12 @@ def ingest_youtube_task(document_id: str, youtube_url: str, target_language: str
     transcript = video_service._get_youtube_transcript(youtube_url, target_language)
     
     if not transcript:
-        import Path
         audio_path = video_service._extract_audio(youtube_url)
         try:
             transcript = video_service.transcribe_audio(audio_path, target_language)
         finally:
-            from pathlib import Path
-            p = Path(audio_path)
-            if p.exists():
-                p.unlink(missing_ok=True)
+            if audio_path and Path(audio_path).exists():
+                Path(audio_path).unlink(missing_ok=True)
 
     if not transcript:
         raise ValueError(f"Could not retrieve transcript for {youtube_url}")
