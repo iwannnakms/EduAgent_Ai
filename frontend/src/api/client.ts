@@ -66,19 +66,6 @@ export type RoadmapResponse = {
 };
 
 export const api = {
-  submitVideo(url: string, targetLanguage: string, maxSummaryTokens: number): Promise<TaskAccepted> {
-    return http("/video/summarize", {
-      method: "POST",
-      body: JSON.stringify({
-        youtube_url: url,
-        target_language: targetLanguage,
-        max_summary_tokens: maxSummaryTokens,
-      }),
-    });
-  },
-  pollVideoTask(taskId: string): Promise<TaskStatus> {
-    return http(`/video/tasks/${taskId}`);
-  },
   submitRagTextIngest(documentId: string, text: string): Promise<TaskAccepted> {
     return http("/rag/ingest/text/async", {
       method: "POST",
@@ -96,17 +83,6 @@ export const api = {
         throw new Error(`${res.status} ${res.statusText}: ${errBody}`);
       }
       return (await res.json()) as TaskAccepted;
-    });
-  },
-  submitRagYoutubeIngest(documentId: string, youtubeUrl: string, targetLanguage: string = "en"): Promise<TaskAccepted> {
-    return http("/rag/ingest/youtube", {
-      method: "POST",
-      body: JSON.stringify({
-        document_id: documentId,
-        youtube_url: youtubeUrl,
-        target_language: targetLanguage,
-        metadata: {}
-      }),
     });
   },
   pollRagTask(taskId: string): Promise<TaskStatus> {

@@ -10,8 +10,7 @@ logger.info("Initializing worker startup sequence...")
 
 try:
     # Safely import tasks
-    from app.tasks.rag_tasks import ingest_file_compressed_task, ingest_text_task, ingest_youtube_task
-    from app.tasks.video_tasks import process_video_task
+    from app.tasks.rag_tasks import ingest_file_compressed_task, ingest_text_task
     logger.info("All tasks successfully imported and registered with worker.")
 except Exception as e:
     logger.error("CRITICAL: Failed to import tasks. Worker will likely fail: %s", str(e))

@@ -9,18 +9,13 @@ export const LandingPage = () => {
   const features = [
     {
       icon: Zap,
-      title: 'Chat with Anything',
-      description: 'Upload PDFs or link YouTube videos to start an intelligent conversation with your content.',
+      title: 'Chat with Documents',
+      description: 'Upload PDFs or text files to start an intelligent conversation with your content.',
     },
     {
       icon: BrainCircuit,
       title: 'Smart Roadmaps',
       description: 'Generate personalized learning paths with curated resources and direct study links.',
-    },
-    {
-      icon: Youtube,
-      title: 'YouTube to Notes',
-      description: 'Instantly transform lectures and tutorials into structured, high-quality Markdown study notes.',
     },
   ];
 
@@ -45,7 +40,7 @@ export const LandingPage = () => {
           </h1>
           
           <p className="text-lg md:text-xl text-slate-400 mb-10 max-w-2xl mx-auto leading-relaxed">
-            Chat with your documents, extract insights from YouTube videos, and build dynamic learning roadmaps with the most advanced AI agent.
+            Chat with your documents and build dynamic learning roadmaps with the most advanced AI agent.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -56,19 +51,13 @@ export const LandingPage = () => {
               Start Chatting
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </button>
-            <button 
-              onClick={() => navigate('/youtube')}
-              className="px-8 py-3.5 rounded-xl bg-slate-900 border border-slate-700 hover:bg-slate-800 text-slate-200 font-medium transition-all w-full sm:w-auto justify-center"
-            >
-              Learn More
-            </button>
           </div>
         </motion.div>
       </div>
 
       {/* Features Section */}
-      <div className="max-w-6xl mx-auto px-6 py-20 pb-32">
-        <div className="grid md:grid-cols-3 gap-8">
+      <div className="max-w-5xl mx-auto px-6 py-20 pb-32">
+        <div className="grid md:grid-cols-2 gap-8">
           {features.map((feature, index) => (
             <motion.div
               key={feature.title}

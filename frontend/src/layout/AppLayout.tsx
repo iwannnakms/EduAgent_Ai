@@ -12,7 +12,6 @@ export function cn(...inputs: ClassValue[]) {
 const navItems = [
   { icon: LayoutDashboard, label: 'Home', path: '/' },
   { icon: MessageSquare, label: 'Chat Assistant', path: '/chat' },
-  { icon: Youtube, label: 'YouTube Notes', path: '/youtube' },
   { icon: MapIcon, label: 'Roadmap Builder', path: '/roadmap' },
 ];
 

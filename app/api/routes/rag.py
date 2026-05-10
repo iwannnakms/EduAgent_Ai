@@ -85,19 +85,6 @@ async def get_rag_task_status(task_id: str) -> TaskStatusResponse:
         return TaskStatusResponse(task_id=task_id, status=task.status, result=task.result)
     return TaskStatusResponse(task_id=task_id, status=task.status)
 
-@router.post("/ingest/youtube", response_model=TaskAcceptedResponse)
-async def ingest_youtube(payload: RAGIngestYoutubeRequest) -> TaskAcceptedResponse:
-    # Use direct string name to avoid circular imports
-    task = celery_app.send_task(
-        "tasks.rag.ingest_youtube",
-        kwargs={
-            "document_id": payload.document_id,
-            "youtube_url": str(payload.youtube_url),
-            "target_language": payload.target_language,
-            "metadata": payload.metadata,
-        }
-    )
-    return TaskAcceptedResponse(task_id=task.id, message="YouTube ingestion started.")
 
 @router.post("/query", response_model=RAGQueryResponse)
 async def rag_query(payload: RAGQueryRequest) -> RAGQueryResponse:

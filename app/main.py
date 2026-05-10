@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 from app.api.routes.health import router as health_router
 from app.api.routes.rag import router as rag_router
 from app.api.routes.roadmap import router as roadmap_router
-from app.api.routes.video import router as video_router
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -29,7 +28,6 @@ app.add_middleware(
 
 # 1. Register API Routes FIRST (order matters in FastAPI)
 app.include_router(health_router, prefix="/api/v1")
-app.include_router(video_router, prefix="/api/v1")
 app.include_router(rag_router, prefix="/api/v1")
 app.include_router(roadmap_router, prefix="/api/v1")
 

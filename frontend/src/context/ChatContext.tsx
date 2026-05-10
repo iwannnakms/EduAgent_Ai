@@ -26,12 +26,9 @@ const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export const ChatProvider = ({ children }: { children: ReactNode }) => {
   const [activeContextId, setActiveContextId] = useState<string>('');
-  const [contexts, setContexts] = useState<string[]>(['General', 'Research', 'Lectures']);
+  const [contexts, setContexts] = useState<string[]>([]);
   const [messageHistory, setMessageHistory] = useState<Record<string, Message[]>>({
-    '': [],
-    'General': [],
-    'Research': [],
-    'Lectures': []
+    '': []
   });
 
   const addContext = useCallback((id: string) => {

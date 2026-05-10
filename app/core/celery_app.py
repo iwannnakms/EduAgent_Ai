@@ -35,5 +35,5 @@ celery_app.conf.update(
     # CRITICAL FIX: Change default queue to avoid poisoned tasks from previous runs
     task_default_queue="edu_ai_queue_v2",
     # This ensures that the worker registers tasks correctly
-    imports=("app.tasks.rag_tasks", "app.tasks.video_tasks"),
+    imports=("app.tasks.rag_tasks",),
 )

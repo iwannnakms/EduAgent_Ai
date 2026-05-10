@@ -66,7 +66,7 @@ export const ChatPage = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const targetContext = activeContextId || 'General';
+    const targetContext = activeContextId || 'global';
     addMessage(activeContextId, {
       id: `up-${Date.now()}`,
       role: 'bot',

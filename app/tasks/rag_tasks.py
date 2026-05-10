@@ -45,29 +45,3 @@ def ingest_file_compressed_task(
         return {"document_id": document_id, "chunks_ingested": chunks, "backend": service.backend}
     except Exception as e:
         raise e
-
-
-@celery_app.task(name="tasks.rag.ingest_youtube")
-def ingest_youtube_task(document_id: str, youtube_url: str, target_language: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
-    video_service = VideoService()
-    transcript = video_service._get_youtube_transcript(youtube_url, target_language)
-    
-    if not transcript:
-        # Correctly use Path from pathlib
-        audio_path = video_service._extract_audio(youtube_url)
-        try:
-            transcript = video_service.transcribe_audio(audio_path, target_language)
-        finally:
-            if audio_path:
-                p = Path(audio_path)
-                if p.exists():
-                    p.unlink(missing_ok=True)
-
-    if not transcript:
-        raise ValueError(f"Could not retrieve transcript for {youtube_url}")
-
-    rag_service = RAGService()
-    combined_metadata = {**metadata, "source_url": youtube_url, "type": "youtube_transcript"}
-    chunks = rag_service.ingest_text(document_id=document_id, text=transcript, metadata=combined_metadata)
-    
-    return {"document_id": document_id, "chunks_ingested": chunks, "backend": rag_service.backend}
