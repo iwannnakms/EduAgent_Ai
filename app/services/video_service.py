@@ -47,7 +47,6 @@ class VideoService:
         if ffmpeg_bin:
             ffmpeg_dir = os.path.dirname(ffmpeg_bin)
         else:
-            # Common locations in cloud environments
             potential_dirs = ["/usr/bin", "/usr/local/bin", "/bin"]
             ffmpeg_dir = next((d for d in potential_dirs if os.path.exists(os.path.join(d, "ffmpeg"))), "/usr/bin")
 
@@ -62,9 +61,11 @@ class VideoService:
             "mp3",
             "--no-playlist",
             "--ffmpeg-location", ffmpeg_dir,
-            "--extractor-args", "youtube:player_client=android,web_embedded",
-            "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            # 'ios' is currently the most robust client for bypassing bot detection
+            "--extractor-args", "youtube:player_client=ios,web_embedded",
+            "--user-agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1",
             "--referer", "https://www.youtube.com/",
+            "--no-check-certificates",
             "-o",
             output_template,
         ]
@@ -78,11 +79,14 @@ class VideoService:
             command.insert(-1, str(cookies_path))
             
         try:
-            logger.info(f"Extracting audio. ffmpeg_dir: {ffmpeg_dir}, node_bin: {node_bin}")
+            logger.info(f"Extracting audio using iOS bypass. ffmpeg_dir: {ffmpeg_dir}")
             subprocess.run(command, check=True, capture_output=True, text=True)
         except subprocess.CalledProcessError as e:
-            error_msg = f"yt-dlp failed with exit code {e.returncode}.\nSTDERR: {e.stderr}"
-            logger.error(error_msg)
+            error_msg = f"yt-dlp failed with exit code {e.returncode}."
+            if "confirm you’re not a bot" in e.stderr or "429" in e.stderr:
+                error_msg = "YouTube is currently blocking this cloud server. Try again in a few hours or upload a transcript manually."
+            else:
+                logger.error(f"yt-dlp detailed error: {e.stderr}")
             raise RuntimeError(error_msg) from e
 
         matches = list(Path(self.settings.temp_dir).glob(f"{output_stem.name}.*"))
@@ -92,6 +96,7 @@ class VideoService:
 
     def transcribe_audio(self, audio_path: Path, target_language: str | None = "en") -> str:
         try:
+            # FIX: Correct argument name is 'file'
             uploaded_file = self.client.files.upload(
                 file=str(audio_path),
                 config={'mime_type': 'audio/mpeg'}
