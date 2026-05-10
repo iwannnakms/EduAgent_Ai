@@ -40,27 +40,17 @@ class VideoService:
 
     def _extract_audio(self, youtube_url: str) -> Path:
         output_stem = Path(self.settings.temp_dir) / f"yt_{uuid4()}"
-        output_template = str(output_stem) + ".%(ext)s"
+        # Native m4a download completely bypasses the need for ffmpeg/ffprobe
+        output_template = str(output_stem) + ".m4a"
         
-        # Robustly find ffmpeg/ffprobe directory
-        ffmpeg_bin = shutil.which("ffmpeg")
-        if ffmpeg_bin:
-            ffmpeg_dir = os.path.dirname(ffmpeg_bin)
-        else:
-            potential_dirs = ["/usr/bin", "/usr/local/bin", "/bin"]
-            ffmpeg_dir = next((d for d in potential_dirs if os.path.exists(os.path.join(d, "ffmpeg"))), "/usr/bin")
-
         # Robustly find node for JS runtime
         node_bin = shutil.which("node") or shutil.which("nodejs")
         js_runtime_args = ["--js-runtimes", "node"] if node_bin else []
         
         command = [
             "yt-dlp",
-            "-x",
-            "--audio-format",
-            "mp3",
+            "-f", "ba[ext=m4a]",
             "--no-playlist",
-            "--ffmpeg-location", ffmpeg_dir,
             # 'ios' is currently the most robust client for bypassing bot detection
             "--extractor-args", "youtube:player_client=ios,web_embedded",
             "--user-agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1",
@@ -79,14 +69,14 @@ class VideoService:
             command.insert(-1, str(cookies_path))
             
         try:
-            logger.info(f"Extracting audio using iOS bypass. ffmpeg_dir: {ffmpeg_dir}")
+            logger.info(f"Extracting raw m4a audio without ffmpeg. URL: {youtube_url}")
             subprocess.run(command, check=True, capture_output=True, text=True)
         except subprocess.CalledProcessError as e:
-            error_msg = f"yt-dlp failed with exit code {e.returncode}."
+            logger.error(f"yt-dlp failed: {e.stderr}")
             if "confirm you’re not a bot" in e.stderr or "429" in e.stderr:
-                error_msg = "YouTube is currently blocking this cloud server. Try again in a few hours or upload a transcript manually."
+                error_msg = "YouTube is currently blocking this server due to bot detection. Try again later or use a video with existing captions."
             else:
-                logger.error(f"yt-dlp detailed error: {e.stderr}")
+                error_msg = "Failed to extract audio from this video. It may be restricted, live, or unsupported."
             raise RuntimeError(error_msg) from e
 
         matches = list(Path(self.settings.temp_dir).glob(f"{output_stem.name}.*"))
@@ -96,10 +86,10 @@ class VideoService:
 
     def transcribe_audio(self, audio_path: Path, target_language: str | None = "en") -> str:
         try:
-            # FIX: Correct argument name is 'file'
+            # FIX: Upload native m4a file
             uploaded_file = self.client.files.upload(
                 file=str(audio_path),
-                config={'mime_type': 'audio/mpeg'}
+                config={'mime_type': 'audio/mp4'}
             )
             
             prompt = (
