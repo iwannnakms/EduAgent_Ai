@@ -1,12 +1,11 @@
-import subprocess
 import re
 import logging
-import shutil
 import os
 from pathlib import Path
 from typing import Optional
 from uuid import uuid4
 
+import yt_dlp
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
 
 from app.core.config import get_settings
@@ -31,7 +30,6 @@ class VideoService:
         video_id = self._extract_video_id(youtube_url)
         if not video_id:
             return None
-        
         try:
             transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=[target_language, 'en'])
             return " ".join([t['text'] for t in transcript_list])
@@ -40,64 +38,63 @@ class VideoService:
 
     def _extract_audio(self, youtube_url: str) -> Path:
         output_stem = Path(self.settings.temp_dir) / f"yt_{uuid4()}"
-        # Native m4a download completely bypasses the need for ffmpeg/ffprobe
-        output_template = str(output_stem) + ".m4a"
         
-        # Robustly find node for JS runtime
-        node_bin = shutil.which("node") or shutil.which("nodejs")
-        js_runtime_args = ["--js-runtimes", "node"] if node_bin else []
+        # DEFINITIVE FIX: Use yt-dlp Python library directly.
+        # This allows us to disable the internal ffmpeg/ffprobe checks completely.
+        ydl_opts = {
+            'format': 'bestaudio[ext=m4a]/bestaudio/best',
+            'outtmpl': str(output_stem) + '.%(ext)s',
+            'quiet': True,
+            'no_warnings': True,
+            'nocheckcertificate': True,
+            'ignoreerrors': False,
+            'logtostderr': False,
+            'addmetadata': False,
+            'writethumbnail': False,
+            'no_color': True,
+            # CRITICAL: Tell yt-dlp to NEVER touch ffmpeg or ffprobe
+            'postprocessors': [],
+            'prefer_ffmpeg': False,
+            'fixup': 'never',
+            # Bypassing 429/Bot detection using iOS client simulation
+            'user_agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+            'referer': 'https://www.youtube.com/',
+            'extractor_args': {'youtube': {'player_client': ['ios', 'web_embedded']}},
+        }
         
-        command = [
-            "yt-dlp",
-            "-f", "ba[ext=m4a]",
-            "--no-playlist",
-            # 'ios' is currently the most robust client for bypassing bot detection
-            "--extractor-args", "youtube:player_client=ios,web_embedded",
-            "--user-agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1",
-            "--referer", "https://www.youtube.com/",
-            "--no-check-certificates",
-            "-o",
-            output_template,
-        ]
-        
-        command.extend(js_runtime_args)
-        command.append(youtube_url)
-        
+        # Load cookies if they exist
         cookies_path = Path("cookies.txt")
         if cookies_path.exists():
-            command.insert(-1, "--cookies")
-            command.insert(-1, str(cookies_path))
-            
-        try:
-            logger.info(f"Extracting raw m4a audio without ffmpeg. URL: {youtube_url}")
-            subprocess.run(command, check=True, capture_output=True, text=True)
-        except subprocess.CalledProcessError as e:
-            logger.error(f"yt-dlp failed: {e.stderr}")
-            if "confirm you’re not a bot" in e.stderr or "429" in e.stderr:
-                error_msg = "YouTube is currently blocking this server due to bot detection. Try again later or use a video with existing captions."
-            else:
-                error_msg = "Failed to extract audio from this video. It may be restricted, live, or unsupported."
-            raise RuntimeError(error_msg) from e
+            ydl_opts['cookiefile'] = str(cookies_path)
 
+        try:
+            logger.info(f"Extracting native audio using Python library. URL: {youtube_url}")
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([youtube_url])
+        except Exception as e:
+            err_msg = str(e)
+            logger.error(f"yt-dlp library failure: {err_msg}")
+            if "confirm you" in err_msg or "429" in err_msg:
+                raise RuntimeError("YouTube is temporarily blocking requests from this server. Try again in an hour.")
+            raise RuntimeError(f"Failed to extract audio: {err_msg}")
+
+        # Find the resulting file
         matches = list(Path(self.settings.temp_dir).glob(f"{output_stem.name}.*"))
         if not matches:
-            raise FileNotFoundError("Audio extraction failed: no output file found.")
+            raise FileNotFoundError("Audio extraction failed: file was not saved.")
         return matches[0]
 
     def transcribe_audio(self, audio_path: Path, target_language: str | None = "en") -> str:
         try:
-            # FIX: Upload native m4a file
             uploaded_file = self.client.files.upload(
                 file=str(audio_path),
                 config={'mime_type': 'audio/mp4'}
             )
-            
             prompt = (
                 "Transcribe this educational audio faithfully. "
                 "Use clear paragraph breaks and punctuation. "
                 f"Target language: {target_language or 'auto-detect'}."
             )
-            
             response = self.client.models.generate_content(
                 model=self.audio_model_name,
                 contents=[prompt, uploaded_file]
@@ -109,9 +106,9 @@ class VideoService:
 
     def summarize_transcript(self, transcript: str, max_summary_tokens: int = 350) -> str:
         prompt = (
-            "Summarize the following educational transcript into study notes using Markdown.\n"
-            "Structure:\n1. # Title\n2. ## Overview\n3. ## Key Takeaways\n4. ## Detailed Summary\n"
-            f"Aim for {max_summary_tokens} tokens.\n\nTranscript:\n{transcript}"
+            "Summarize the transcript into study notes using Markdown.\n"
+            "Structure: # Title, ## Overview, ## Key Takeaways, ## Detailed Summary.\n"
+            f"Limit: {max_summary_tokens} tokens.\n\nTranscript:\n{transcript}"
         )
         try:
             response = self.client.models.generate_content(
@@ -125,21 +122,14 @@ class VideoService:
 
     def process_video(self, youtube_url: str, target_language: str | None, max_summary_tokens: int) -> dict:
         transcript = self._get_youtube_transcript(youtube_url, target_language or "en")
-        
         if not transcript:
             audio_path = self._extract_audio(youtube_url=youtube_url)
             try:
                 transcript = self.transcribe_audio(audio_path=audio_path, target_language=target_language)
             finally:
-                if audio_path.exists():
+                if audio_path and audio_path.exists():
                     audio_path.unlink(missing_ok=True)
-        
         if not transcript:
-            raise RuntimeError("Could not retrieve or generate a transcript for this video.")
-
+            raise RuntimeError("Could not retrieve transcript.")
         summary = self.summarize_transcript(transcript=transcript, max_summary_tokens=max_summary_tokens)
-        return {
-            "youtube_url": youtube_url,
-            "transcript": transcript,
-            "summary": summary,
-        }
+        return {"youtube_url": youtube_url, "transcript": transcript, "summary": summary}

@@ -6,20 +6,22 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 WORKDIR /app
 
-# Install system dependencies: ffmpeg, nodejs (standard packages for maximum stability)
+# Install system dependencies: ffmpeg (just in case), and a guaranteed Node.js runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
-    nodejs \
-    npm \
     curl \
     ca-certificates \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Verify installations
+RUN ffmpeg -version && node -v
 
 # 1. Build Frontend
 COPY frontend/package*.json ./frontend/
 RUN cd frontend && npm install
-
 COPY frontend/ ./frontend/
 RUN cd frontend && npm run build
 
@@ -28,7 +30,6 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
-
 COPY start-prod.sh .
 RUN chmod +x start-prod.sh
 
