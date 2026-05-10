@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Zap, BrainCircuit, Youtube } from 'lucide-react';
+import { ArrowRight, Zap, BrainCircuit, Search } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export const LandingPage = () => {
@@ -16,6 +16,11 @@ export const LandingPage = () => {
       icon: BrainCircuit,
       title: 'Smart Roadmaps',
       description: 'Generate personalized learning paths with curated resources and direct study links.',
+    },
+    {
+      icon: Search,
+      title: 'Deep Research',
+      description: 'Leverage AI to uncover insights and synthesize complex information from across your library.',
     },
   ];
 
@@ -56,8 +61,8 @@ export const LandingPage = () => {
       </div>
 
       {/* Features Section */}
-      <div className="max-w-5xl mx-auto px-6 py-20 pb-32">
-        <div className="grid md:grid-cols-2 gap-8">
+      <div className="max-w-6xl mx-auto px-6 py-20 pb-32">
+        <div className="grid md:grid-cols-3 gap-8">
           {features.map((feature, index) => (
             <motion.div
               key={feature.title}
