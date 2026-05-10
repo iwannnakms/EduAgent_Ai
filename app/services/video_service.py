@@ -42,7 +42,18 @@ class VideoService:
         output_stem = Path(self.settings.temp_dir) / f"yt_{uuid4()}"
         output_template = str(output_stem) + ".%(ext)s"
         
-        ffmpeg_path = shutil.which("ffmpeg") or "/usr/bin/ffmpeg"
+        # Robustly find ffmpeg/ffprobe directory
+        ffmpeg_bin = shutil.which("ffmpeg")
+        if ffmpeg_bin:
+            ffmpeg_dir = os.path.dirname(ffmpeg_bin)
+        else:
+            # Common locations in cloud environments
+            potential_dirs = ["/usr/bin", "/usr/local/bin", "/bin"]
+            ffmpeg_dir = next((d for d in potential_dirs if os.path.exists(os.path.join(d, "ffmpeg"))), "/usr/bin")
+
+        # Robustly find node for JS runtime
+        node_bin = shutil.which("node") or shutil.which("nodejs")
+        js_runtime_args = ["--js-runtimes", "node"] if node_bin else []
         
         command = [
             "yt-dlp",
@@ -50,28 +61,27 @@ class VideoService:
             "--audio-format",
             "mp3",
             "--no-playlist",
-            "--ffmpeg-location", ffmpeg_path,
-            "--js-runtimes", "node",
-            # Use specific clients and user agents to bypass 429/Bot detection
+            "--ffmpeg-location", ffmpeg_dir,
             "--extractor-args", "youtube:player_client=android,web_embedded",
             "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "--referer", "https://www.youtube.com/",
             "-o",
             output_template,
-            youtube_url,
         ]
+        
+        command.extend(js_runtime_args)
+        command.append(youtube_url)
         
         cookies_path = Path("cookies.txt")
         if cookies_path.exists():
-            command.extend(["--cookies", str(cookies_path)])
+            command.insert(-1, "--cookies")
+            command.insert(-1, str(cookies_path))
             
         try:
-            logger.info(f"Extracting audio using command: {' '.join(command)}")
+            logger.info(f"Extracting audio. ffmpeg_dir: {ffmpeg_dir}, node_bin: {node_bin}")
             subprocess.run(command, check=True, capture_output=True, text=True)
         except subprocess.CalledProcessError as e:
             error_msg = f"yt-dlp failed with exit code {e.returncode}.\nSTDERR: {e.stderr}"
-            if "confirm you’re not a bot" in e.stderr:
-                error_msg += "\n\nHint: YouTube is blocking this request. Try adding a 'cookies.txt' file."
             logger.error(error_msg)
             raise RuntimeError(error_msg) from e
 
@@ -82,7 +92,6 @@ class VideoService:
 
     def transcribe_audio(self, audio_path: Path, target_language: str | None = "en") -> str:
         try:
-            # FIX: Correct argument name is 'file', not 'path' in the new google-genai SDK
             uploaded_file = self.client.files.upload(
                 file=str(audio_path),
                 config={'mime_type': 'audio/mpeg'}
